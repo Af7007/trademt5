@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scalping Bot Dashboard - BTC/USD</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0a0e27 0%, #1a1d35 100%);
+            color: #ffffff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            background: linear-gradient(90deg, #26ff7e, #1ed760);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #a0a0c0;
+            margin-top: 10px;
+        }
+
+        .controls {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 25px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .control-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .input-group label {
+            font-size: 0.9em;
+            color: #a0a0c0;
+        }
+
+        .input-group input {
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            font-size: 1em;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        button {
+            padding: 15px 40px;
+            font-size: 1.1em;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, #26ff7e, #1ed760);
+            color: #000;
+        }
+
+        .btn-start:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(38, 255, 126, 0.4);
+        }
+
+        .btn-stop {
+            background: linear-gradient(135deg, #ff4757, #ff3838);
+            color: #fff;
+        }
+
+        .btn-stop:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 71, 87, 0.4);
+        }
+
+        .btn-manual {
+            background: linear-gradient(135deg, #ffcd3c, #f7931a);
+            color: #000;
+        }
+
+        .btn-manual:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 205, 60, 0.4);
+        }
+
+        .status-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-label {
+            font-size: 0.85em;
+            color: #a0a0c0;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .positive { color: #26ff7e; }
+        .negative { color: #ff4757; }
+        .neutral { color: #ffcd3c; }
+
+        .bot-status {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-running {
+            background: #26ff7e;
+        }
+
+        .status-stopped {
+            background: #ff4757;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .positions-table {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(255, 255, 255, 0.1);
+            font-weight: bold;
+        }
+
+        .log-panel {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .log-entry {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-left: 3px solid #26ff7e;
+            padding-left: 12px;
+            font-family: monospace;
+            font-size: 0.9em;
+        }
+
+        .log-success { border-left-color: #26ff7e; }
+        .log-error { border-left-color: #ff4757; }
+        .log-info { border-left-color: #ffcd3c; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Scalping Bot Dashboard</h1>
+            <p class="subtitle">Sistema Automático de Trading BTC/USD com Análise de Padrões</p>
+        </header>
+
+        <!-- Status do Bot -->
+        <div class="bot-status">
+            <h2>
+                <span class="status-indicator status-stopped" id="status-indicator"></span>
+                Status: <span id="bot-status-text">Parado</span>
+            </h2>
+        </div>
+
+        <!-- Controles -->
+        <div class="controls">
+            <h3 style="margin-bottom: 20px;">⚙️ Configurações do Bot</h3>
+
+            <div class="control-group">
+                <div class="input-group">
+                    <label>Confiança Mínima (%)</label>
+                    <input type="number" id="confidence" value="85" min="50" max="100" step="5">
+                </div>
+
+                <div class="input-group">
+                    <label>Volume (lotes)</label>
+                    <input type="number" id="volume" value="0.01" min="0.01" max="1" step="0.01">
+                </div>
+
+                <div class="input-group">
+                    <label>Intervalo (segundos)</label>
+                    <input type="number" id="interval" value="60" min="30" max="300" step="30">
+                </div>
+            </div>
+
+            <div class="button-group">
+                <button class="btn-start" onclick="startBot()">▶️ Iniciar Bot</button>
+                <button class="btn-stop" onclick="stopBot()">⏹️ Parar Bot</button>
+                <button class="btn-manual" onclick="executeOnce()">🎯 Executar Uma Vez</button>
+            </div>
+        </div>
+
+        <!-- Operações Manuais -->
+        <div class="controls">
+            <h3 style="margin-bottom: 20px;">📈 Operações Manuais</h3>
+            <p style="color: #a0a0c0; margin-bottom: 20px; font-size: 0.9em;">
+                Execute ordens BUY ou SELL manualmente. O volume configurado acima será usado.
+            </p>
+
+            <div class="button-group">
+                <button class="btn-start" onclick="executeManualTrade('BUY')">📈 COMPRAR (BUY)</button>
+                <button class="btn-stop" onclick="executeManualTrade('SELL')">📉 VENDER (SELL)</button>
+            </div>
+
+            <div style="margin-top: 15px; text-align: center;">
+                <label style="color: #a0a0c0; font-size: 0.9em;">
+                    <input type="checkbox" id="use-sl-tp" checked style="margin-right: 8px;">
+                    Usar Stop Loss e Take Profit automáticos (0.5% / 0.3%)
+                </label>
+            </div>
+        </div>
+
+        <!-- Estatísticas -->
+        <div class="status-panel">
+            <div class="stat-card">
+                <div class="stat-label">Total de Operações</div>
+                <div class="stat-value neutral" id="total-trades">0</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Taxa de Acerto</div>
+                <div class="stat-value neutral" id="win-rate">0%</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Lucro Total</div>
+                <div class="stat-value neutral" id="total-profit">$0.00</div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Posições Abertas</div>
+                <div class="stat-value neutral" id="current-positions">0</div>
+            </div>
+        </div>
+
+        <!-- Tabela de Posições Abertas -->
+        <div class="positions-table">
+            <h3 style="margin-bottom: 15px;">📊 Posições Abertas</h3>
+            <table id="positions-table">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Tipo</th>
+                        <th>Volume</th>
+                        <th>Preço Entrada</th>
+                        <th>Preço Atual</th>
+                        <th>SL</th>
+                        <th>TP</th>
+                        <th>Lucro</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="positions-tbody">
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: #a0a0c0;">Nenhuma posição aberta</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Histórico de Transações do Dia -->
+        <div class="positions-table" style="margin-bottom: 20px;">
+            <h3 style="margin-bottom: 15px;">📜 Histórico de Transações do Dia</h3>
+            <div style="background: rgba(255, 255, 255, 0.05); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; text-align: center;">
+                    <div>
+                        <div style="color: #a0a0c0; font-size: 0.9em;">Total de Operações</div>
+                        <div style="font-size: 1.5em; font-weight: bold;" id="history-count">0</div>
+                    </div>
+                    <div>
+                        <div style="color: #a0a0c0; font-size: 0.9em;">Lucro do Dia</div>
+                        <div style="font-size: 1.5em; font-weight: bold;" id="history-profit" class="neutral">$0.00</div>
+                    </div>
+                    <div>
+                        <div style="color: #a0a0c0; font-size: 0.9em;">Posições Abertas</div>
+                        <div style="font-size: 1.5em; font-weight: bold; color: #26ff7e;" id="open-positions-count">0</div>
+                    </div>
+                </div>
+            </div>
+            <table id="history-table">
+                <thead>
+                    <tr>
+                        <th>Ticket</th>
+                        <th>Ordem</th>
+                        <th>Horário</th>
+                        <th>Tipo</th>
+                        <th>Entrada/Saída</th>
+                        <th>Volume</th>
+                        <th>Preço</th>
+                        <th>Lucro</th>
+                        <th>Comentário</th>
+                    </tr>
+                </thead>
+                <tbody id="history-tbody">
+                    <tr>
+                        <td colspan="9" style="text-align: center; color: #a0a0c0;">Nenhuma transação hoje</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Log de Atividades -->
+        <div class="log-panel">
+            <h3 style="margin-bottom: 15px;">📝 Log de Atividades</h3>
+            <div id="log-container">
+                <div class="log-entry log-info">Sistema iniciado. Aguardando comandos...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let updateInterval;
+
+        function addLog(message, type = 'info') {
+            const logContainer = document.getElementById('log-container');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            logContainer.insertBefore(entry, logContainer.firstChild);
+
+            // Limitar a 50 entradas
+            if (logContainer.children.length > 50) {
+                logContainer.removeChild(logContainer.lastChild);
+            }
+        }
+
+        async function startBot() {
+            try {
+                const confidence = parseInt(document.getElementById('confidence').value);
+                const volume = parseFloat(document.getElementById('volume').value);
+                const interval = parseInt(document.getElementById('interval').value);
+
+                const response = await fetch('/scalping/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confidence_threshold: confidence, volume, interval })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    addLog(`Bot iniciado! Confiança: ${confidence}%, Volume: ${volume}, Intervalo: ${interval}s`, 'success');
+                    updateBotStatus();
+                } else {
+                    addLog(`Erro ao iniciar bot: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function stopBot() {
+            try {
+                const response = await fetch('/scalping/stop', { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok) {
+                    addLog('Bot parado com sucesso', 'info');
+                    updateBotStatus();
+                } else {
+                    addLog(`Erro ao parar bot: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function executeOnce() {
+            try {
+                addLog('Executando verificação manual...', 'info');
+                const response = await fetch('/scalping/execute-once', { method: 'POST' });
+                const data = await response.json();
+
+                if (response.ok) {
+                    const msg = `${data.signal} - Confiança: ${data.confidence}% - ${data.message || 'Verificado'}`;
+                    const type = data.executed ? 'success' : 'info';
+                    addLog(msg, type);
+                } else {
+                    addLog(`Erro: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function executeManualTrade(orderType) {
+            try {
+                const volume = parseFloat(document.getElementById('volume').value);
+                const useSlTp = document.getElementById('use-sl-tp').checked;
+
+                const confirmMsg = `Confirma executar ordem ${orderType}?
+Volume: ${volume} lotes
+Stop Loss/Take Profit: ${useSlTp ? 'Sim (0.5% / 0.3%)' : 'Não'}`;
+
+                if (!confirm(confirmMsg)) {
+                    return;
+                }
+
+                addLog(`Executando ordem ${orderType} manual...`, 'info');
+
+                const response = await fetch('/scalping/trade-manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        order_type: orderType,
+                        volume: volume,
+                        use_sl_tp: useSlTp
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const order = data.order;
+                    const msg = `✅ ${data.message}
+Ticket: ${order.ticket}
+Preço: $${order.price.toFixed(2)}
+${useSlTp ? `SL: $${order.sl.toFixed(2)} | TP: $${order.tp.toFixed(2)}` : '(Sem SL/TP)'}`;
+                    addLog(msg, 'success');
+                    updatePositions(); // Atualizar tabela de posições
+                    updateHistory(); // Atualizar histórico
+                } else {
+                    addLog(`Erro ao executar: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function closePosition(ticket) {
+            try {
+                if (!confirm(`Confirma fechar posição ${ticket}?`)) {
+                    return;
+                }
+
+                addLog(`Fechando posição ${ticket}...`, 'info');
+
+                const response = await fetch('/scalping/close-position', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticket: ticket })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    const profitMsg = data.profit >= 0 ? `Lucro: $${data.profit.toFixed(2)}` : `Prejuízo: $${Math.abs(data.profit).toFixed(2)}`;
+                    addLog(`✅ Posição ${ticket} fechada! ${profitMsg}`, 'success');
+                    updatePositions(); // Atualizar tabela
+                    updateHistory(); // Atualizar histórico
+                } else {
+                    addLog(`Erro ao fechar: ${data.message}`, 'error');
+                }
+            } catch (error) {
+                addLog(`Erro: ${error.message}`, 'error');
+            }
+        }
+
+        async function updateBotStatus() {
+            try {
+                const response = await fetch('/scalping/status');
+                const data = await response.json();
+
+                const indicator = document.getElementById('status-indicator');
+                const statusText = document.getElementById('bot-status-text');
+
+                if (data.running) {
+                    indicator.className = 'status-indicator status-running';
+                    statusText.textContent = 'Rodando';
+                    statusText.style.color = '#26ff7e';
+                } else {
+                    indicator.className = 'status-indicator status-stopped';
+                    statusText.textContent = 'Parado';
+                    statusText.style.color = '#ff4757';
+                }
+
+                if (data.stats) {
+                    document.getElementById('total-trades').textContent = data.stats.total_trades || 0;
+
+                    const winRate = data.stats.win_rate || 0;
+                    const winRateEl = document.getElementById('win-rate');
+                    winRateEl.textContent = winRate.toFixed(1) + '%';
+                    winRateEl.className = 'stat-value ' + (winRate >= 60 ? 'positive' : winRate >= 40 ? 'neutral' : 'negative');
+
+                    const profit = data.stats.total_profit || 0;
+                    const profitEl = document.getElementById('total-profit');
+                    profitEl.textContent = '$' + profit.toFixed(2);
+                    profitEl.className = 'stat-value ' + (profit > 0 ? 'positive' : profit < 0 ? 'negative' : 'neutral');
+
+                    document.getElementById('current-positions').textContent = data.stats.current_positions || 0;
+                }
+
+            } catch (error) {
+                console.error('Erro ao atualizar status:', error);
+            }
+        }
+
+        async function updatePositions() {
+            try {
+                const response = await fetch('/scalping/positions');
+                const data = await response.json();
+
+                const tbody = document.getElementById('positions-tbody');
+
+                // Atualizar contador de posições abertas
+                const openPositionsCount = document.getElementById('open-positions-count');
+                openPositionsCount.textContent = data.count || 0;
+
+                if (data.count === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #a0a0c0;">Nenhuma posição aberta</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.positions.forEach(pos => {
+                    const row = tbody.insertRow();
+                    const profitClass = pos.profit > 0 ? 'positive' : pos.profit < 0 ? 'negative' : 'neutral';
+
+                    row.innerHTML = `
+                        <td>${pos.ticket}</td>
+                        <td><strong>${pos.type}</strong></td>
+                        <td>${pos.volume}</td>
+                        <td>$${pos.price_open.toFixed(2)}</td>
+                        <td>$${pos.price_current.toFixed(2)}</td>
+                        <td>$${pos.sl.toFixed(2)}</td>
+                        <td>$${pos.tp.toFixed(2)}</td>
+                        <td class="${profitClass}">$${pos.profit.toFixed(2)}</td>
+                        <td>
+                            <button onclick="closePosition(${pos.ticket})" style="padding: 5px 15px; font-size: 0.9em; background: #ff4757; color: white;">
+                                ❌ Fechar
+                            </button>
+                        </td>
+                    `;
+                });
+
+            } catch (error) {
+                console.error('Erro ao atualizar posições:', error);
+            }
+        }
+
+        async function updateHistory() {
+            try {
+                const response = await fetch('/scalping/history');
+                const data = await response.json();
+
+                const tbody = document.getElementById('history-tbody');
+                const historyCount = document.getElementById('history-count');
+                const historyProfit = document.getElementById('history-profit');
+
+                // Atualizar estatísticas do histórico
+                historyCount.textContent = data.count || 0;
+
+                const profit = data.total_profit || 0;
+                historyProfit.textContent = '$' + profit.toFixed(2);
+                historyProfit.className = profit > 0 ? 'positive' : profit < 0 ? 'negative' : 'neutral';
+
+                if (data.count === 0) {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: #a0a0c0;">Nenhuma transação hoje</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.deals.forEach(deal => {
+                    const row = tbody.insertRow();
+                    const profitClass = deal.profit > 0 ? 'positive' : deal.profit < 0 ? 'negative' : 'neutral';
+                    const date = new Date(deal.time * 1000);
+                    const timeStr = date.toLocaleTimeString('pt-BR');
+
+                    row.innerHTML = `
+                        <td>${deal.ticket}</td>
+                        <td>${deal.order}</td>
+                        <td>${timeStr}</td>
+                        <td><strong>${deal.type}</strong></td>
+                        <td>${deal.entry}</td>
+                        <td>${deal.volume}</td>
+                        <td>$${deal.price.toFixed(2)}</td>
+                        <td class="${profitClass}">$${deal.profit.toFixed(2)}</td>
+                        <td style="font-size: 0.85em;">${deal.comment}</td>
+                    `;
+                });
+
+            } catch (error) {
+                console.error('Erro ao atualizar histórico:', error);
+            }
+        }
+
+        // Atualizar status, posições e histórico a cada 5 segundos
+        updateBotStatus();
+        updatePositions();
+        updateHistory();
+        setInterval(() => {
+            updateBotStatus();
+            updatePositions();
+            updateHistory();
+        }, 5000);
+    </script>
+</body>
+</html>

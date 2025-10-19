@@ -1,0 +1,36 @@
+# Core dependencies
+Flask==2.3.3
+Werkzeug==2.3.7
+
+# MetaTrader5
+MetaTrader5==5.0.45
+
+# Data processing
+numpy==1.22.4
+pandas==1.4.2
+pytz==2023.3
+
+# API & Documentation
+flasgger==0.9.7.1
+pydantic==1.10.12
+
+# Authentication & Security
+PyJWT==2.8.0
+flask-cors==4.0.0
+
+# WebSocket
+flask-socketio==5.3.4
+python-socketio==5.9.0
+eventlet==0.33.3
+
+# Caching
+redis==5.0.0
+
+# Environment & Configuration
+python-dotenv==1.0.0
+
+# Logging
+python-json-logger==2.0.7
+
+# Production server
+gunicorn==21.2.0

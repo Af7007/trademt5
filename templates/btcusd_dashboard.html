@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BTCUSD Trading Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d44 100%);
+            color: #ffffff;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #f7931a, #ffcd3c);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: #a0a0c0;
+            font-size: 1.1em;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(247, 147, 26, 0.3);
+        }
+
+        .card-title {
+            font-size: 0.9em;
+            color: #a0a0c0;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .card-value {
+            font-size: 2.2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .card-sub {
+            font-size: 0.9em;
+            color: #70708080;
+        }
+
+        .positive {
+            color: #26ff7e;
+        }
+
+        .negative {
+            color: #ff4757;
+        }
+
+        .neutral {
+            color: #ffcd3c;
+        }
+
+        .price-card {
+            background: linear-gradient(135deg, rgba(247, 147, 26, 0.2), rgba(255, 205, 60, 0.2));
+            border: 2px solid rgba(247, 147, 26, 0.5);
+        }
+
+        .spread-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+        }
+
+        .stat-label {
+            font-size: 0.8em;
+            color: #a0a0c0;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 1.3em;
+            font-weight: bold;
+        }
+
+        .positions-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .positions-table th {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            text-align: left;
+            font-size: 0.9em;
+            color: #a0a0c0;
+        }
+
+        .positions-table td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .positions-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online {
+            background: #26ff7e;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .refresh-btn {
+            background: linear-gradient(90deg, #f7931a, #ffcd3c);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            color: #1e1e2e;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 1em;
+            transition: transform 0.2s ease;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .refresh-btn:active {
+            transform: scale(0.95);
+        }
+
+        .last-update {
+            text-align: center;
+            color: #a0a0c0;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 50px;
+            font-size: 1.2em;
+            color: #a0a0c0;
+        }
+
+        .error {
+            background: rgba(255, 71, 87, 0.2);
+            border: 1px solid #ff4757;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .chart-container {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            min-height: 400px;
+        }
+
+        .mini-chart {
+            width: 100%;
+            height: 150px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ BTCUSD Trading Dashboard</h1>
+            <p class="subtitle">
+                <span class="status-indicator status-online"></span>
+                Live Market Data & Trading Statistics
+            </p>
+        </header>
+
+        <div id="loading" class="loading">
+            Loading data...
+        </div>
+
+        <div id="error" class="error" style="display: none;">
+            <h3>Error Loading Data</h3>
+            <p id="error-message"></p>
+        </div>
+
+        <div id="dashboard" style="display: none;">
+            <!-- Price Section -->
+            <div class="grid">
+                <div class="card price-card">
+                    <div class="card-title">📊 Current Price</div>
+                    <div class="card-value" id="current-price">--</div>
+                    <div class="card-sub">
+                        Bid: <span id="bid-price">--</span> | Ask: <span id="ask-price">--</span>
+                    </div>
+                    <div class="spread-badge">
+                        Spread: <span id="spread">--</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📈 24H Change</div>
+                    <div class="card-value" id="change-24h">--</div>
+                    <div class="card-sub" id="change-24h-pct">--</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📉 7D Change</div>
+                    <div class="card-value" id="change-7d">--</div>
+                    <div class="card-sub" id="change-7d-pct">--</div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">💼 Open Positions</div>
+                    <div class="card-value" id="total-positions">0</div>
+                    <div class="card-sub">
+                        Volume: <span id="total-volume">0.00</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Statistics Grid -->
+            <div class="card" style="margin-bottom: 30px;">
+                <div class="card-title">📊 Market Statistics</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">24H High</div>
+                        <div class="stat-value positive" id="high-24h">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">24H Low</div>
+                        <div class="stat-value negative" id="low-24h">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">7D High</div>
+                        <div class="stat-value positive" id="high-7d">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">7D Low</div>
+                        <div class="stat-value negative" id="low-7d">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">100M Volatility</div>
+                        <div class="stat-value neutral" id="volatility">--</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Total P&L</div>
+                        <div class="stat-value" id="total-profit">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Positions Table -->
+            <div class="card">
+                <div class="card-title">💰 Active Positions</div>
+                <div id="positions-container">
+                    <p style="color: #a0a0c0; padding: 20px; text-align: center;">No active positions</p>
+                </div>
+            </div>
+
+            <div class="last-update">
+                Last updated: <span id="last-update">--</span>
+                <br><br>
+                <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let autoRefreshInterval;
+
+        async function loadData() {
+            try {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('error').style.display = 'none';
+
+                const response = await fetch('/btcusd/stats');
+                if (!response.ok) throw new Error('Failed to fetch data');
+
+                const data = await response.json();
+
+                // Update price data
+                document.getElementById('current-price').textContent = '$' + data.tick.ask.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('bid-price').textContent = '$' + data.tick.bid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('ask-price').textContent = '$' + data.tick.ask.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('spread').textContent = data.tick.spread.toFixed(2);
+
+                // Update 24h changes
+                if (data.stats_1h && data.stats_1h.change_24h !== undefined) {
+                    const change24h = data.stats_1h.change_24h;
+                    const changePct = data.stats_1h.change_24h_pct;
+
+                    const change24hEl = document.getElementById('change-24h');
+                    change24hEl.textContent = (change24h >= 0 ? '+' : '') + '$' + change24h.toFixed(2);
+                    change24hEl.className = 'card-value ' + (change24h >= 0 ? 'positive' : 'negative');
+
+                    document.getElementById('change-24h-pct').textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
+                }
+
+                // Update 7d changes
+                if (data.stats_1d && data.stats_1d.change_7d !== undefined) {
+                    const change7d = data.stats_1d.change_7d;
+                    const changePct = data.stats_1d.change_7d_pct;
+
+                    const change7dEl = document.getElementById('change-7d');
+                    change7dEl.textContent = (change7d >= 0 ? '+' : '') + '$' + change7d.toFixed(2);
+                    change7dEl.className = 'card-value ' + (change7d >= 0 ? 'positive' : 'negative');
+
+                    document.getElementById('change-7d-pct').textContent = (changePct >= 0 ? '+' : '') + changePct.toFixed(2) + '%';
+                }
+
+                // Update positions
+                document.getElementById('total-positions').textContent = data.positions.total;
+                document.getElementById('total-volume').textContent = data.positions.total_volume.toFixed(2);
+
+                const totalProfitEl = document.getElementById('total-profit');
+                const totalProfit = data.positions.total_profit;
+                totalProfitEl.textContent = (totalProfit >= 0 ? '+' : '') + '$' + totalProfit.toFixed(2);
+                totalProfitEl.className = 'stat-value ' + (totalProfit >= 0 ? 'positive' : 'negative');
+
+                // Update statistics
+                if (data.stats_1h) {
+                    document.getElementById('high-24h').textContent = '$' + (data.stats_1h.high_24h || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+                    document.getElementById('low-24h').textContent = '$' + (data.stats_1h.low_24h || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+                }
+
+                if (data.stats_1d) {
+                    document.getElementById('high-7d').textContent = '$' + (data.stats_1d.high_7d || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+                    document.getElementById('low-7d').textContent = '$' + (data.stats_1d.low_7d || 0).toLocaleString('en-US', {minimumFractionDigits: 2});
+                }
+
+                if (data.stats_1m && data.stats_1m.volatility_100m) {
+                    document.getElementById('volatility').textContent = '$' + data.stats_1m.volatility_100m.toFixed(2);
+                }
+
+                // Update positions table
+                const positionsContainer = document.getElementById('positions-container');
+                if (data.positions.list && data.positions.list.length > 0) {
+                    let tableHTML = '<table class="positions-table"><thead><tr>';
+                    tableHTML += '<th>Ticket</th><th>Type</th><th>Volume</th><th>Price</th><th>Current</th><th>P&L</th>';
+                    tableHTML += '</tr></thead><tbody>';
+
+                    data.positions.list.forEach(pos => {
+                        const pnlClass = pos.profit >= 0 ? 'positive' : 'negative';
+                        tableHTML += `<tr>
+                            <td>#${pos.ticket}</td>
+                            <td><strong>${pos.type === 0 ? 'BUY' : 'SELL'}</strong></td>
+                            <td>${pos.volume.toFixed(2)}</td>
+                            <td>$${pos.price_open.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                            <td>$${pos.price_current.toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
+                            <td class="${pnlClass}">$${pos.profit.toFixed(2)}</td>
+                        </tr>`;
+                    });
+
+                    tableHTML += '</tbody></table>';
+                    positionsContainer.innerHTML = tableHTML;
+                } else {
+                    positionsContainer.innerHTML = '<p style="color: #a0a0c0; padding: 20px; text-align: center;">No active positions</p>';
+                }
+
+                // Update last update time
+                document.getElementById('last-update').textContent = new Date().toLocaleString('pt-BR');
+
+                // Show dashboard
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('dashboard').style.display = 'block';
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error-message').textContent = error.message;
+            }
+        }
+
+        // Load data on page load
+        loadData();
+
+        // Auto-refresh every 5 seconds
+        autoRefreshInterval = setInterval(loadData, 5000);
+
+        // Clean up interval on page unload
+        window.addEventListener('beforeunload', () => {
+            clearInterval(autoRefreshInterval);
+        });
+    </script>
+</body>
+</html>
