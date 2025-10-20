@@ -11,7 +11,32 @@ import pandas as pd
 
 from .config import get_config
 from .mlp_model import MLPModel
-from .mt5_connector import MT5Connector, Position
+
+# Import absoluto para evitar problemas com execução direta
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.mt5_connection import mt5_connection, MT5ConnectionError
+
+# Django setup for MLP storage
+import os
+import sys
+import django
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).parent.parent
+sys.path.append(str(project_root))
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_server.settings')
+
+try:
+    django.setup()
+    from services.quant_app.models import MLPAnalysis, MLPTrade
+    django_storage_available = True
+    print("[SUCCESS] Django MLP Storage loaded successfully")
+except Exception as e:
+    django_storage_available = False
+    print(f"[ERROR] Django MLP Storage not available: {e}")
 
 
 class TradingEngine:
@@ -20,7 +45,6 @@ class TradingEngine:
     def __init__(self):
         self.config = get_config()
         self.mlp_model = MLPModel()
-        self.mt5_connector = MT5Connector()
         self.is_running = False
         self.last_prediction = None
         self.performance_metrics = {
@@ -43,10 +67,8 @@ class TradingEngine:
         try:
             self.logger.info("Iniciando Trading Bot...")
 
-            # Conectar ao MT5
-            if not self.mt5_connector.connect():
-                self.logger.error("Falha na conexão com MT5")
-                return False
+            # Conectar ao MT5 usando mt5_connection
+            mt5_connection.ensure_connection()
 
             # Carregar modelo treinado
             self.mlp_model.load_model()
@@ -80,14 +102,14 @@ class TradingEngine:
             if self.monitor_thread and self.monitor_thread.is_alive():
                 self.monitor_thread.join(timeout=5)
 
-            # Desconectar MT5
-            self.mt5_connector.disconnect()
+            # Desconectar MT5 usando mt5_connection
+            mt5_connection.shutdown()
 
             self.logger.info("Trading Bot parado")
         except Exception as e:
             self.logger.error(f"Erro ao parar bot: {str(e)}")
 
-    def execute_signal(self, signal: str, confidence: float = 0.5) -> Dict[str, Any]:
+    def execute_signal(self, signal: str, confidence: float = 0.5, analysis_id: int = None) -> Dict[str, Any]:
         """Executa operação baseada no sinal do modelo"""
         try:
             if not self.is_running:
@@ -97,32 +119,67 @@ class TradingEngine:
                 self.logger.info(f"Confiança baixa ({confidence:.2f}), ignorando sinal: {signal}")
                 return {'success': False, 'error': 'Confiança baixa'}
 
-            # Verificar posições existentes
-            positions = self.mt5_connector.get_positions()
-            if len(positions) >= self.config.trading.max_positions:
+            # Verificar posições existentes usando mt5_connection
+            # Nota: mt5_connection não tem método get_positions, precisamos usar MT5 diretamente
+            positions = mt5.positions_get()
+            if positions is not None and len(positions) >= self.config.trading.max_positions:
                 self.logger.info(f"Máximo de posições atingido ({len(positions)})")
                 return {'success': False, 'error': 'Máximo de posições atingido'}
 
-            # Obter preço atual
-            symbol_info = self.mt5_connector.get_symbol_info()
+            # Obter preço atual usando mt5_connection
+            symbol_info = mt5_connection.get_terminal_info()
             if symbol_info is None:
+                return {'success': False, 'error': 'Não foi possível obter informações do terminal'}
+
+            # Para obter preços atuais, precisamos usar MT5 diretamente
+            import MetaTrader5 as mt5
+            symbol_data = mt5.symbol_info(self.config.trading.symbol)
+            if symbol_data is None:
                 return {'success': False, 'error': 'Não foi possível obter informações do símbolo'}
 
-            current_price = symbol_info['ask'] if signal == 'BUY' else symbol_info['bid']
+            current_price = symbol_data.ask if signal == 'BUY' else symbol_data.bid
 
-            # Calcular SL e TP
-            sl, tp = self.mt5_connector.calculate_sl_tp(
-                self.config.trading.symbol, signal, current_price
-            )
+            # Calcular SL e TP baseado na configuração
+            point = symbol_data.point
+            sl_pips = self.config.trading.stop_loss_pips
+            tp_pips = self.config.trading.take_profit_pips
+
+            if signal.upper() == 'BUY':
+                sl = current_price - (sl_pips * point * 10)  # Convert pips to price
+                tp = current_price + (tp_pips * point * 10)
+            else:  # SELL
+                sl = current_price + (sl_pips * point * 10)
+                tp = current_price - (tp_pips * point * 10)
+
+            sl = round(sl, symbol_data.digits)
+            tp = round(tp, symbol_data.digits)
+
+            # Enviar ordem usando MT5 diretamente
+            order_type = mt5.ORDER_TYPE_BUY if signal.upper() == 'BUY' else mt5.ORDER_TYPE_SELL
+
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "symbol": self.config.trading.symbol,
+                "volume": self.config.trading.lot_size,
+                "type": order_type,
+                "magic": self.config.trading.magic_number,
+                "comment": "MLP Bot Order"
+            }
+
+            # Adicionar SL e TP se especificados
+            if sl > 0:
+                request["sl"] = sl
+            if tp > 0:
+                request["tp"] = tp
 
             # Enviar ordem
-            ticket = self.mt5_connector.send_market_order(
-                symbol=self.config.trading.symbol,
-                order_type=signal,
-                volume=self.config.trading.lot_size,
-                sl=sl,
-                tp=tp
-            )
+            result = mt5.order_send(request)
+
+            if result.retcode != mt5.TRADE_RETCODE_DONE:
+                self.logger.error(f"Erro ao enviar ordem: {result.retcode} - {result.comment}")
+                return {'success': False, 'error': f'Falha ao enviar ordem: {result.comment}'}
+
+            ticket = result.order
 
             if ticket:
                 # Atualizar métricas
@@ -134,6 +191,28 @@ class TradingEngine:
                     'timestamp': datetime.now()
                 }
 
+                # Salvar trade no Django se disponível
+                if django_storage_available and analysis_id:
+                    try:
+                        try:
+                            analysis_obj = MLPAnalysis.objects.get(id=analysis_id)
+                        except MLPAnalysis.DoesNotExist:
+                            analysis_obj = None
+
+                        trade = MLPTrade.objects.create(
+                            ticket=ticket,
+                            symbol=self.config.trading.symbol,
+                            type=signal.upper(),
+                            volume=self.config.trading.lot_size,
+                            entry_price=current_price,
+                            sl_price=sl if sl > 0 else None,
+                            tp_price=tp if tp > 0 else None,
+                            analysis=analysis_obj
+                        )
+                        self.logger.info(f"Trade salvo no Django - Ticket: {ticket}, ID: {trade.id}")
+                    except Exception as e:
+                        self.logger.error(f"Erro ao salvar trade: {str(e)}")
+
                 self.logger.info(f"Operação executada: {signal} (Ticket: {ticket}, Confiança: {confidence:.2f})")
                 return {
                     'success': True,
@@ -142,7 +221,8 @@ class TradingEngine:
                     'confidence': confidence,
                     'price': current_price,
                     'sl': sl,
-                    'tp': tp
+                    'tp': tp,
+                    'analysis_id': analysis_id
                 }
             else:
                 return {'success': False, 'error': 'Falha ao enviar ordem'}
@@ -157,31 +237,119 @@ class TradingEngine:
             if not self.is_running:
                 return {'success': False, 'error': 'Bot não está rodando'}
 
-            # Obter dados de mercado
-            market_data = self.mt5_connector.get_market_data(
-                symbol=self.config.trading.symbol,
-                timeframe='M1',
-                count=self.config.mlp.sequence_length
-            )
+            # Obter dados de mercado usando MT5 diretamente
+            import MetaTrader5 as mt5
+
+            # Converter timeframe para MT5
+            tf_dict = {
+                'M1': mt5.TIMEFRAME_M1,
+                'M5': mt5.TIMEFRAME_M5,
+                'M15': mt5.TIMEFRAME_M15,
+                'H1': mt5.TIMEFRAME_H1,
+                'H4': mt5.TIMEFRAME_H4,
+                'D1': mt5.TIMEFRAME_D1
+            }
+
+            timeframe_mt5 = tf_dict.get('M1', mt5.TIMEFRAME_M1)
+
+            # Obter dados
+            rates = mt5.copy_rates_from_pos(self.config.trading.symbol, timeframe_mt5, 0, self.config.mlp.sequence_length)
+
+            if rates is None or len(rates) == 0:
+                self.logger.error(f"Não foi possível obter dados para {self.config.trading.symbol}")
+                return {'success': False, 'error': 'Dados insuficientes para análise'}
+
+            # Converter para DataFrame
+            market_data = pd.DataFrame(rates)
+            market_data['time'] = pd.to_datetime(market_data['time'], unit='s')
+            market_data = market_data[['time', 'open', 'high', 'low', 'close', 'tick_volume']]
 
             if len(market_data) < 30:  # Mínimo de dados necessários
                 return {'success': False, 'error': 'Dados insuficientes para análise'}
+
+            # Calcular indicadores técnicos
+            indicators = {
+                'rsi': self._calculate_rsi(market_data['close'], 14).iloc[-1] if len(market_data) > 14 else None,
+                'macd_signal': self._calculate_macd_signal(market_data['close']).iloc[-1] if len(market_data) > 26 else None,
+                'bb_upper': self._calculate_bollinger_bands(market_data['close'], 20)[0].iloc[-1] if len(market_data) > 20 else None,
+                'bb_lower': self._calculate_bollinger_bands(market_data['close'], 20)[1].iloc[-1] if len(market_data) > 20 else None,
+                'sma_20': market_data['close'].rolling(window=20).mean().iloc[-1] if len(market_data) >= 20 else None,
+                'sma_50': market_data['close'].rolling(window=50).mean().iloc[-1] if len(market_data) >= 50 else None,
+            }
 
             # Fazer predição
             signal, confidence = self.mlp_model.predict(market_data)
 
             self.logger.info(f"Análise: {signal} (Confiança: {confidence:.2f})")
 
+            # Preparar dados para salvar no Django
+            analysis_data = {
+                'symbol': self.config.trading.symbol,
+                'signal': signal,
+                'confidence': confidence,
+                'indicators': indicators,
+                'market_data': {
+                    'open': market_data['open'].iloc[-1],
+                    'high': market_data['high'].iloc[-1],
+                    'low': market_data['low'].iloc[-1],
+                    'close': market_data['close'].iloc[-1],
+                    'volume': market_data['tick_volume'].iloc[-1],
+                },
+                'technical_signals': {
+                    'rsi_divergence': self._detect_rsi_divergence(market_data),
+                    'volume_spike': self._detect_volume_spike(market_data),
+                    'trend_strength': self._calculate_trend_strength(market_data),
+                    'support_resistance': self._detect_support_resistance(market_data),
+                },
+                'market_conditions': {
+                    'volatility': self._calculate_volatility(market_data),
+                    'trend': self._detect_trend(market_data),
+                    'volume': self._calculate_volume_profile(market_data),
+                }
+            }
+
+            # Salvar no Django
+            analysis_id = None
+            if django_storage_available:
+                try:
+                    analysis = MLPAnalysis.objects.create(
+                        symbol=analysis_data['symbol'],
+                        timeframe='M1',
+                        signal=analysis_data['signal'],
+                        confidence=analysis_data['confidence'],
+                        rsi=analysis_data['indicators']['rsi'],
+                        macd_signal=analysis_data['indicators']['macd_signal'],
+                        bb_upper=analysis_data['indicators']['bb_upper'],
+                        bb_lower=analysis_data['indicators']['bb_lower'],
+                        sma_20=analysis_data['indicators']['sma_20'],
+                        sma_50=analysis_data['indicators']['sma_50'],
+                        price_open=analysis_data['market_data']['open'],
+                        price_high=analysis_data['market_data']['high'],
+                        price_low=analysis_data['market_data']['low'],
+                        price_close=analysis_data['market_data']['close'],
+                        volume=analysis_data['market_data']['volume'],
+                        market_conditions=json.dumps(analysis_data['market_conditions']),
+                        technical_signals=json.dumps(analysis_data['technical_signals'])
+                    )
+                    analysis_id = analysis.id
+                    self.logger.info(f"Análise salva no Django - ID: {analysis_id}")
+                except Exception as e:
+                    self.logger.error(f"Erro ao salvar análise: {str(e)}")
+
             # Executar se sinal for BUY ou SELL
             if signal in ['BUY', 'SELL']:
-                return self.execute_signal(signal, confidence)
+                result = self.execute_signal(signal, confidence, analysis_id)
+                result['analysis_id'] = analysis_id
+                return result
             else:
-                return {
+                result = {
                     'success': True,
                     'signal': 'HOLD',
                     'confidence': confidence,
-                    'message': 'Sinal HOLD - nenhuma operação executada'
+                    'message': 'Sinal HOLD - nenhuma operação executada',
+                    'analysis_id': analysis_id
                 }
+                return result
 
         except Exception as e:
             self.logger.error(f"Erro na análise e trading: {str(e)}")
@@ -190,22 +358,31 @@ class TradingEngine:
     def get_status(self) -> Dict[str, Any]:
         """Obtém status atual do bot"""
         try:
-            positions = self.mt5_connector.get_positions()
-            account_info = self.mt5_connector.get_account_info()
+            # Obter posições usando MT5 diretamente
+            import MetaTrader5 as mt5
+            positions_mt5 = mt5.positions_get()
+
+            positions = []
+            if positions_mt5:
+                for pos in positions_mt5:
+                    if pos.magic == self.config.trading.magic_number:
+                        position = {
+                            'ticket': pos.ticket,
+                            'type': 'BUY' if pos.type == mt5.POSITION_TYPE_BUY else 'SELL',
+                            'volume': pos.volume,
+                            'profit': pos.profit,
+                            'symbol': pos.symbol
+                        }
+                        positions.append(position)
+
+            # Obter informações da conta usando mt5_connection
+            account_info = mt5_connection.get_account_info()
 
             return {
                 'is_running': self.is_running,
-                'mt5_connected': self.mt5_connector.is_connected(),
+                'mt5_connected': mt5_connection.is_initialized,
                 'positions_count': len(positions),
-                'positions': [
-                    {
-                        'ticket': pos.ticket,
-                        'type': pos.type,
-                        'volume': pos.volume,
-                        'profit': pos.profit,
-                        'symbol': pos.symbol
-                    } for pos in positions
-                ],
+                'positions': positions,
                 'account_info': account_info,
                 'last_prediction': self.last_prediction,
                 'performance': self.performance_metrics,
@@ -220,20 +397,29 @@ class TradingEngine:
         try:
             self.logger.info(f"Iniciando treinamento com {days} dias de dados...")
 
-            # Obter dados históricos
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=days)
+            # Coletar dados de diferentes timeframes usando MT5 diretamente
+            import MetaTrader5 as mt5
 
-            # Coletar dados de diferentes timeframes
             all_data = []
-            for tf in ['M1', 'M5', 'M15']:
-                data = self.mt5_connector.get_market_data(
-                    symbol=self.config.trading.symbol,
-                    timeframe=tf,
-                    count=min(days * 24 * 60 // int(tf[1:]), 10000)  # Ajustar count baseado no timeframe
-                )
-                if len(data) > 0:
-                    all_data.append(data)
+            tf_dict = {
+                'M1': mt5.TIMEFRAME_M1,
+                'M5': mt5.TIMEFRAME_M5,
+                'M15': mt5.TIMEFRAME_M15
+            }
+
+            for tf_name, tf_mt5 in tf_dict.items():
+                # Calcular count baseado no timeframe
+                count = min(days * 24 * 60 // int(tf_name[1:]), 10000)
+
+                # Obter dados
+                rates = mt5.copy_rates_from_pos(self.config.trading.symbol, tf_mt5, 0, count)
+
+                if rates is not None and len(rates) > 0:
+                    # Converter para DataFrame
+                    df = pd.DataFrame(rates)
+                    df['time'] = pd.to_datetime(df['time'], unit='s')
+                    df = df[['time', 'open', 'high', 'low', 'close', 'tick_volume']]
+                    all_data.append(df)
 
             if not all_data:
                 return {'success': False, 'error': 'Não foi possível obter dados históricos'}
@@ -286,13 +472,31 @@ class TradingEngine:
     def emergency_close_all(self) -> Dict[str, Any]:
         """Fecha todas as posições em caso de emergência"""
         try:
-            positions = self.mt5_connector.get_positions()
-            closed_positions = []
+            import MetaTrader5 as mt5
 
-            for position in positions:
-                success = self.mt5_connector.close_position(position.ticket)
-                if success:
-                    closed_positions.append(position.ticket)
+            # Obter posições do bot (com magic number específico)
+            positions_mt5 = mt5.positions_get()
+
+            closed_positions = []
+            if positions_mt5:
+                for pos in positions_mt5:
+                    if pos.magic == self.config.trading.magic_number:
+                        # Fechar posição
+                        close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+
+                        request = {
+                            "action": mt5.TRADE_ACTION_DEAL,
+                            "position": pos.ticket,
+                            "symbol": pos.symbol,
+                            "volume": pos.volume,
+                            "type": close_type,
+                            "magic": self.config.trading.magic_number,
+                            "comment": "Emergency Close"
+                        }
+
+                        result = mt5.order_send(request)
+                        if result.retcode == mt5.TRADE_RETCODE_DONE:
+                            closed_positions.append(pos.ticket)
 
             return {
                 'success': True,
@@ -307,15 +511,33 @@ class TradingEngine:
     def get_performance_report(self) -> Dict[str, Any]:
         """Gera relatório de performance"""
         try:
-            positions = self.mt5_connector.get_positions()
-            account_info = self.mt5_connector.get_account_info()
+            import MetaTrader5 as mt5
+
+            # Obter posições do bot usando MT5 diretamente
+            positions_mt5 = mt5.positions_get()
+
+            positions = []
+            if positions_mt5:
+                for pos in positions_mt5:
+                    if pos.magic == self.config.trading.magic_number:
+                        position = {
+                            'ticket': pos.ticket,
+                            'type': 'BUY' if pos.type == mt5.POSITION_TYPE_BUY else 'SELL',
+                            'profit': pos.profit,
+                            'volume': pos.volume,
+                            'open_time': datetime.fromtimestamp(pos.time)
+                        }
+                        positions.append(position)
+
+            # Obter informações da conta usando mt5_connection
+            account_info = mt5_connection.get_account_info()
 
             # Calcular métricas
             total_positions = len(positions)
-            total_profit = sum(pos.profit for pos in positions)
+            total_profit = sum(pos['profit'] for pos in positions)
 
             # Win rate
-            winning_positions = len([pos for pos in positions if pos.profit > 0])
+            winning_positions = len([pos for pos in positions if pos['profit'] > 0])
             win_rate = (winning_positions / total_positions * 100) if total_positions > 0 else 0
 
             # Drawdown (simplificado)
@@ -334,11 +556,11 @@ class TradingEngine:
                 },
                 'positions': [
                     {
-                        'ticket': pos.ticket,
-                        'type': pos.type,
-                        'profit': round(pos.profit, 2),
-                        'volume': pos.volume,
-                        'open_time': pos.open_time.isoformat()
+                        'ticket': pos['ticket'],
+                        'type': pos['type'],
+                        'profit': round(pos['profit'], 2),
+                        'volume': pos['volume'],
+                        'open_time': pos['open_time'].isoformat()
                     } for pos in positions
                 ],
                 'account': account_info,
@@ -348,3 +570,88 @@ class TradingEngine:
         except Exception as e:
             self.logger.error(f"Erro ao gerar relatório: {str(e)}")
             return {'error': str(e)}
+
+    # Métodos auxiliares para cálculos técnicos
+    def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
+        """Calculate RSI"""
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        return 100 - (100 / (1 + rs))
+
+    def _calculate_macd_signal(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.Series:
+        """Calculate MACD signal line"""
+        fast_ema = prices.ewm(span=fast).mean()
+        slow_ema = prices.ewm(span=slow).mean()
+        macd = fast_ema - slow_ema
+        return macd.ewm(span=signal).mean()
+
+    def _calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std_dev: int = 2) -> tuple:
+        """Calculate Bollinger Bands"""
+        sma = prices.rolling(window=period).mean()
+        std = prices.rolling(window=period).std()
+        upper = sma + (std * std_dev)
+        lower = sma - (std * std_dev)
+        return upper, lower
+
+    def _detect_rsi_divergence(self, data: pd.DataFrame) -> bool:
+        """Detect RSI divergence (simplified)"""
+        if len(data) < 20:
+            return False
+        return (data['close'].iloc[-1] < data['close'].iloc[-10] and
+                self._calculate_rsi(data['close']).iloc[-1] > self._calculate_rsi(data['close']).iloc[-10])
+
+    def _detect_volume_spike(self, data: pd.DataFrame) -> bool:
+        """Detect volume spike (simplified)"""
+        if len(data) < 20:
+            return False
+        avg_volume = data['tick_volume'].iloc[-20:-1].mean()
+        return data['tick_volume'].iloc[-1] > avg_volume * 2
+
+    def _calculate_trend_strength(self, data: pd.DataFrame) -> float:
+        """Calculate trend strength (simplified)"""
+        if len(data) < 20:
+            return 0.0
+        returns = data['close'].pct_change().iloc[-20:]
+        return abs(returns.mean() / returns.std()) if returns.std() > 0 else 0.0
+
+    def _detect_support_resistance(self, data: pd.DataFrame) -> dict:
+        """Detect support/resistance levels (simplified)"""
+        if len(data) < 20:
+            return {}
+        recent_high = data['high'].iloc[-20:].max()
+        recent_low = data['low'].iloc[-20:].min()
+        return {'support': recent_low, 'resistance': recent_high}
+
+    def _calculate_volatility(self, data: pd.DataFrame) -> float:
+        """Calculate volatility (standard deviation)"""
+        if len(data) < 20:
+            return 0.0
+        returns = data['close'].pct_change().iloc[-20:]
+        return returns.std() * 100  # Percentage
+
+    def _detect_trend(self, data: pd.DataFrame) -> str:
+        """Detect trend direction (simplified)"""
+        if len(data) < 50:
+            return 'SIDEWAYS'
+        sma_20 = data['close'].rolling(window=20).mean()
+        sma_50 = data['close'].rolling(window=50).mean()
+        if sma_20.iloc[-1] > sma_50.iloc[-1]:
+            return 'BULLISH'
+        elif sma_20.iloc[-1] < sma_50.iloc[-1]:
+            return 'BEARISH'
+        else:
+            return 'SIDEWAYS'
+
+    def _calculate_volume_profile(self, data: pd.DataFrame) -> dict:
+        """Calculate volume profile (simplified)"""
+        if len(data) < 20:
+            return {}
+        avg_volume = data['tick_volume'].iloc[-20:].mean()
+        current_volume = data['tick_volume'].iloc[-1]
+        return {
+            'average': avg_volume,
+            'current': current_volume,
+            'above_average': current_volume > avg_volume
+        }

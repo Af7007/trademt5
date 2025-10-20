@@ -1,0 +1,44 @@
+[
+  {
+    "id": 1,
+    "ticket": 1234567,
+    "symbol": "BTCUSDc",
+    "type": "BUY",
+    "volume": 0.02,
+    "entry_price": 64500.0,
+    "sl_price": 63500.0,
+    "tp_price": 65500.0,
+    "profit": 25.5,
+    "exit_price": 65200.0,
+    "exit_reason": "TP",
+    "created_at": "2025-10-18T14:35:00",
+    "updated_at": "2025-10-18T15:10:00"
+  },
+  {
+    "id": 2,
+    "ticket": 1234568,
+    "symbol": "BTCUSDc",
+    "type": "SELL",
+    "volume": 0.015,
+    "entry_price": 65200.0,
+    "sl_price": 66200.0,
+    "tp_price": 64200.0,
+    "profit": -18.75,
+    "exit_price": 64900.0,
+    "exit_reason": "MANUAL",
+    "created_at": "2025-10-18T15:20:00",
+    "updated_at": "2025-10-18T15:45:00"
+  },
+  {
+    "id": 3,
+    "ticket": 1234569,
+    "symbol": "EURUSD",
+    "type": "BUY",
+    "volume": 0.1,
+    "entry_price": 1.0520,
+    "sl_price": 1.0450,
+    "tp_price": 1.0620,
+    "profit": 0.0,
+    "created_at": "2025-10-19T10:00:00"
+  }
+]

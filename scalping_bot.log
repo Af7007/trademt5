@@ -1,0 +1,11 @@
+2025-10-19 18:30:25,141 - __main__ - INFO - Scalping Bot está DESABILITADO - Use as rotas /scalping/start para iniciar manualmente
+2025-10-19 18:30:25,167 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.1.3:5000
+2025-10-19 18:30:25,168 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
+2025-10-19 18:32:28,868 - werkzeug - INFO - 127.0.0.1 - - [19/Oct/2025 18:32:28] "GET /mlp/health HTTP/1.1" 200 -
+2025-10-19 18:33:02,513 - werkzeug - INFO - 127.0.0.1 - - [19/Oct/2025 18:33:02] "[33mGET / HTTP/1.1[0m" 404 -
+2025-10-19 18:33:02,547 - werkzeug - INFO - 127.0.0.1 - - [19/Oct/2025 18:33:02] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-10-19 18:34:49,941 - werkzeug - INFO - 127.0.0.1 - - [19/Oct/2025 18:34:49] "[33mGET / HTTP/1.1[0m" 404 -
+2025-10-19 18:34:53,747 - werkzeug - INFO - 127.0.0.1 - - [19/Oct/2025 18:34:53] "[33mGET /apidocs HTTP/1.1[0m" 404 -

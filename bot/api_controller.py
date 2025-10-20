@@ -1,7 +1,7 @@
 """
 API Controller para controle remoto do bot MLP-MT5
 """
-from flask import Flask, request, jsonify
+from flask import Blueprint, request, jsonify
 import logging
 import json
 from datetime import datetime
@@ -18,7 +18,9 @@ class BotAPIController:
     def __init__(self):
         self.config = get_config()
         self.trading_engine = TradingEngine()
-        self.app = Flask(__name__)
+
+        # Criar blueprint ao invés de aplicativo Flask
+        self.app = Blueprint('bot_mlp_api', __name__)
 
         # Configurar logging
         self.logger = logging.getLogger(__name__)
@@ -36,10 +38,10 @@ class BotAPIController:
                 'status': 'healthy',
                 'timestamp': datetime.now().isoformat(),
                 'bot_running': self.trading_engine.is_running,
-                'mt5_connected': self.trading_engine.mt5_connector.is_connected()
+                'mt5_connected': self.trading_engine.get_status().get('mt5_connected', False)
             })
 
-        @self.app.route('/bot/start', methods=['POST'])
+        @self.app.route('/start', methods=['POST'])
         def start_bot():
             """Inicia o bot de trading"""
             try:
@@ -57,7 +59,7 @@ class BotAPIController:
                     'timestamp': datetime.now().isoformat()
                 }), 500
 
-        @self.app.route('/bot/stop', methods=['POST'])
+        @self.app.route('/stop', methods=['POST'])
         def stop_bot():
             """Para o bot de trading"""
             try:
@@ -75,7 +77,7 @@ class BotAPIController:
                     'timestamp': datetime.now().isoformat()
                 }), 500
 
-        @self.app.route('/bot/status', methods=['GET'])
+        @self.app.route('/bot/mlp-status', methods=['GET'])
         def get_bot_status():
             """Obtém status atual do bot"""
             try:
@@ -224,22 +226,12 @@ class BotAPIController:
         def get_positions():
             """Obtém posições atuais"""
             try:
-                positions = self.trading_engine.mt5_connector.get_positions()
+                # Obter posições usando o método atualizado do TradingEngine
+                status = self.trading_engine.get_status()
+                positions = status.get('positions', [])
+
                 return jsonify({
-                    'positions': [
-                        {
-                            'ticket': pos.ticket,
-                            'symbol': pos.symbol,
-                            'type': pos.type,
-                            'volume': pos.volume,
-                            'profit': pos.profit,
-                            'open_price': pos.open_price,
-                            'current_price': pos.current_price,
-                            'sl': pos.sl,
-                            'tp': pos.tp,
-                            'open_time': pos.open_time.isoformat()
-                        } for pos in positions
-                    ],
+                    'positions': positions,
                     'total': len(positions),
                     'timestamp': datetime.now().isoformat()
                 })
@@ -254,21 +246,47 @@ class BotAPIController:
         def get_market_data():
             """Obtém dados de mercado"""
             try:
+                import MetaTrader5 as mt5
+
                 symbol = request.args.get('symbol', self.config.trading.symbol)
                 timeframe = request.args.get('timeframe', 'M1')
                 count = int(request.args.get('count', 100))
 
-                data = self.trading_engine.mt5_connector.get_market_data(
-                    symbol=symbol,
-                    timeframe=timeframe,
-                    count=count
-                )
+                # Converter timeframe para MT5
+                tf_dict = {
+                    'M1': mt5.TIMEFRAME_M1,
+                    'M5': mt5.TIMEFRAME_M5,
+                    'M15': mt5.TIMEFRAME_M15,
+                    'H1': mt5.TIMEFRAME_H1,
+                    'H4': mt5.TIMEFRAME_H4,
+                    'D1': mt5.TIMEFRAME_D1
+                }
+
+                timeframe_mt5 = tf_dict.get(timeframe, mt5.TIMEFRAME_M1)
+
+                # Obter dados usando MT5 diretamente
+                rates = mt5.copy_rates_from_pos(symbol, timeframe_mt5, 0, count)
+
+                if rates is None or len(rates) == 0:
+                    return jsonify({
+                        'error': f'Não foi possível obter dados para {symbol}',
+                        'symbol': symbol,
+                        'timeframe': timeframe,
+                        'count': 0,
+                        'data': [],
+                        'timestamp': datetime.now().isoformat()
+                    }), 404
+
+                # Converter para DataFrame e depois para dict
+                import pandas as pd
+                df = pd.DataFrame(rates)
+                df['time'] = pd.to_datetime(df['time'], unit='s')
 
                 return jsonify({
                     'symbol': symbol,
                     'timeframe': timeframe,
-                    'count': len(data),
-                    'data': data.to_dict('records') if not data.empty else [],
+                    'count': len(df),
+                    'data': df[['time', 'open', 'high', 'low', 'close', 'tick_volume']].to_dict('records'),
                     'timestamp': datetime.now().isoformat()
                 })
             except Exception as e:

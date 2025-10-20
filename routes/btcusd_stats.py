@@ -4,7 +4,29 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 from lib import get_positions
-from pattern_analyzer import analyze_market
+
+def analyze_market(df):
+    """
+    Basic market analysis function (stub replacement for pattern_analyzer)
+    """
+    try:
+        current_price = df['close'].iloc[-1]
+        sma_20 = df['close'].rolling(window=20).mean().iloc[-1]
+        rsi = 100 - (100 / (1 + (df['close'].diff().where(df['close'].diff() > 0, 0).rolling(window=14).mean() /
+                                   df['close'].diff().where(df['close'].diff() < 0, 0).rolling(window=14).mean()).iloc[-1]))
+
+        direction = "BULLISH" if current_price > sma_20 else "BEARISH"
+        confidence = abs((current_price - sma_20) / sma_20) * 100
+
+        return {
+            "direction": direction,
+            "confidence": min(confidence, 100),
+            "rsi": rsi,
+            "sma_20": sma_20,
+            "current_price": current_price
+        }
+    except Exception as e:
+        return {"error": f"Analysis failed: {str(e)}"}
 
 btcusd_stats_bp = Blueprint('btcusd_stats', __name__)
 

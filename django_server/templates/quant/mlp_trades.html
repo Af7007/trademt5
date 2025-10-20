@@ -1,0 +1,639 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLP Trades - Sistema Quantitativo</title>
+
+    <!-- Bootstrap para interface profissional -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        .card { margin-bottom: 20px; border: none; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .card-header { background-color: #f8f9fa; font-weight: 600; border-bottom: 1px solid #e9ecef; }
+        .metric-card .card-body { padding: 1.5rem; text-align: center; }
+        .metric-value { font-size: 2.5rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .metric-label { color: #6c757d; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .chart-container { position: relative; height: 300px; margin-bottom: 20px; }
+        .navbar-brand { font-weight: 700; }
+        .btn-primary { background-color: #0d6efd; border-color: #0d6efd; }
+        .table-responsive { margin-top: 1rem; }
+        .status-success { color: #198754; }
+        .status-warning { color: #ffc107; }
+        .status-danger { color: #dc3545; }
+        .badge { font-size: 0.75em; }
+        body { background-color: #f8f9fa; }
+        .container-fluid { padding: 1.5rem; }
+        .shadow-sm { box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075)!important; }
+        .fs-7 { font-size: 0.8rem; }
+        .text-truncate { max-width: 200px; }
+        .progress { height: 8px; }
+        .small { font-size: 0.875em; }
+        .trade-profit { font-weight: bold; }
+        .trade-profit.profit { color: #198754; }
+        .trade-profit.loss { color: #dc3545; }
+        .trade-status { padding: 0.25rem 0.5rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+        .trade-opened { background-color: rgba(13, 110, 253, 0.1); color: #0d6efd; }
+        .trade-closed-profit { background-color: rgba(25, 135, 84, 0.1); color: #198754; }
+        .trade-closed-loss { background-color: rgba(220, 53, 69, 0.1); color: #dc3545; }
+        .win-rate-high { color: #198754; font-weight: bold; }
+        .win-rate-medium { color: #ffc107; font-weight: bold; }
+        .win-rate-low { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <!-- Navbar Superior -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4 shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-cash-coin me-2"></i>MLP Trades
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'quant:mlp_dashboard' %}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'quant:mlp_analyses' %}">Análises</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{% url 'quant:mlp_trades' %}">Trades</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="btn btn-outline-light ms-2" href="{% url 'quant:mlp_control' %}">
+                            <i class="bi bi-joystick me-1"></i>Controle
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <span class="navbar-text">
+                            <i class="bi bi-graph-up me-1"></i>{{ current_time|date:"d/m H:i" }}
+                        </span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <!-- Resumo de Performance -->
+        <div class="row mb-4">
+            {% if trades_stats %}
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="bi bi-trophy-fill fs-2 text-warning mb-2"></i>
+                        <h6 class="card-title">Total de Trades</h6>
+                        <div class="h3 mb-1">{{ trades_stats.total_trades|default:0 }}</div>
+                        <small class="text-muted">últimos 30 dias</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="bi bi-graph-up-arrow fs-2 text-success mb-2"></i>
+                        <h6 class="card-title">Trades Vencedores</h6>
+                        <div class="h3 mb-1">{{ trades_stats.winning_trades|default:0 }}</div>
+                        <div class="small">
+                            <span class="{% if trades_stats.win_rate|floatformat:0 >= 70 %}win-rate-high{% elif trades_stats.win_rate|floatformat:0 >= 50 %}win-rate-medium{% else %}win-rate-low{% endif %}">
+                                {{ trades_stats.win_rate|floatformat:1 }}%
+                            </span>
+                            <small class="text-muted">taxa de acerto</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="bi bi-cash-stack fs-2 text-info mb-2"></i>
+                        <h6 class="card-title">Profit/Loss Total</h6>
+                        <div class="h3 mb-1 {% if trades_stats.total_profit|floatformat:2 >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            ${{ trades_stats.total_profit|floatformat:2 }}
+                        </div>
+                        <small class="text-muted">resultado bruto</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <i class="bi bi-bar-chart-line fs-2 text-primary mb-2"></i>
+                        <h6 class="card-title">Profit Médio</h6>
+                        <div class="h3 mb-1 {% if trades_stats.avg_profit|floatformat:2 >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            ${{ trades_stats.avg_profit|floatformat:2 }}
+                        </div>
+                        <small class="text-muted">por trade</small>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-body text-center py-5">
+                            <i class="bi bi-cash-coin text-warning fs-1 mb-3"></i>
+                            <h4>Nenhum trade encontrado</h4>
+                            <p class="text-muted">Os trades aparecerão aqui quando houver transações executadas.</p>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Filtros de Trades -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h4 class="mb-0">
+                                <i class="bi bi-search text-primary me-2"></i>Filtros de Trades
+                            </h4>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <input type="radio" class="btn-check" name="tradePeriod" id="todayTrades" autocomplete="off" checked>
+                                <label class="btn btn-outline-primary btn-sm" for="todayTrades">
+                                    <i class="bi bi-calendar-day me-1"></i>Hoje
+                                </label>
+                                <input type="radio" class="btn-check" name="tradePeriod" id="weekTrades" autocomplete="off">
+                                <label class="btn btn-outline-primary btn-sm" for="weekTrades">
+                                    <i class="bi bi-calendar-week me-1"></i>7dias
+                                </label>
+                                <input type="radio" class="btn-check" name="tradePeriod" id="monthTrades" autocomplete="off">
+                                <label class="btn btn-outline-primary btn-sm" for="monthTrades">
+                                    <i class="bi bi-calendar-month me-1"></i>30dias
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <label class="form-label">Símbolo</label>
+                                <select class="form-select" id="symbolFilter">
+                                    <option value="all" selected>TODOS</option>
+                                    <option value="BTCUSDc">BTCUSD</option>
+                                    <option value="EURUSD">EURUSD</option>
+                                    <option value="GBPUSD">GBPUSD</option>
+                                    <option value="USDJPY">USDJPY</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select" id="typeFilter">
+                                    <option value="all" selected>TODOS</option>
+                                    <option value="BUY">Compra</option>
+                                    <option value="SELL">Venda</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-select" id="statusFilter">
+                                    <option value="all" selected>TODOS</option>
+                                    <option value="OPEN">Aberto</option>
+                                    <option value="CLOSED_PROFIT">Fechado (Profit)</option>
+                                    <option value="CLOSED_LOSS">Fechado (Perda)</option>
+                                    <option value="CANCELLED">Cancelado</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-3 col-md-6 mb-3">
+                                <label class="form-label">Ordenação</label>
+                                <select class="form-select" id="sortFilter">
+                                    <option value="newest" selected>Mais Recente</option>
+                                    <option value="oldest">Mais Antigo</option>
+                                    <option value="profit_desc">Maior Profit</option>
+                                    <option value="profit_asc">Menor Profit</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Lista de Trades -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="bi bi-list-ul text-info me-2"></i>Histórico de Trades
+                            </h5>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="exportTrades()">
+                                    <i class="bi bi-download me-1"></i>Exportar Excel
+                                </button>
+                                <button type="button" class="btn btn-outline-success btn-sm" onclick="printTrades()">
+                                    <i class="bi bi-printer me-1"></i>Imprimir
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="tradesTable">
+                                <thead>
+                                    <tr>
+                                        <th>Ticket ID</th>
+                                        <th>Símbolo</th>
+                                        <th>Tipo</th>
+                                        <th>Volume</th>
+                                        <th>Preço Entrada</th>
+                                        <th>Preço Saída</th>
+                                        <th>Profit/Loss</th>
+                                        <th>Status</th>
+                                        <th>Data Abertura</th>
+                                        <th>Data Fechamento</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if trades_data %}
+                                        {% for trade in trades_data %}
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-secondary">#{{ trade.ticket }}</span>
+                                            </td>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <i class="bi bi-currency-bitcoin me-2"></i>
+                                                    <span class="fw-bold">{{ trade.symbol }}</span>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge fs-7 {% if trade.type == 'BUY' %}bg-success{% else %}bg-danger{% endif %}">
+                                                    {{ trade.type }}
+                                                </span>
+                                            </td>
+                                            <td>{{ trade.volume|floatformat:3 }}</td>
+                                            <td class="fw-bold">
+                                                {% if trade.symbol == 'BTCUSDc' %}
+                                                    ${{ trade.entry_price|floatformat:2 }}
+                                                {% else %}
+                                                    {{ trade.entry_price|floatformat:4 }}
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if trade.exit_price %}
+                                                    {% if trade.symbol == 'BTCUSDc' %}
+                                                        ${{ trade.exit_price|floatformat:2 }}
+                                                    {% else %}
+                                                        {{ trade.exit_price|floatformat:4 }}
+                                                    {% endif %}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if trade.profit is not None %}
+                                                    <div class="trade-profit {% if trade.profit >= 0 %}profit{% else %}loss{% endif %}">
+                                                        ${{ trade.profit|floatformat:2 }}
+                                                    </div>
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if trade.status == 'OPEN' %}
+                                                    <span class="trade-status trade-opened">Aberto</span>
+                                                {% elif trade.status == 'CLOSED_PROFIT' %}
+                                                    <span class="trade-status trade-closed-profit">Fechado P</span>
+                                                {% elif trade.status == 'CLOSED_LOSS' %}
+                                                    <span class="trade-status trade-closed-loss">Fechado L</span>
+                                                {% else %}
+                                                    <span class="trade-status bg-secondary">{{ trade.status }}</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="small">{{ trade.entry_time|date:"d/m/y H:i" }}</td>
+                                            <td class="small">
+                                                {% if trade.exit_time %}
+                                                    {{ trade.exit_time|date:"d/m/y H:i" }}
+                                                {% else %}
+                                                    <span class="text-muted">-</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                <div class="btn-group btn-group-sm" role="group">
+                                                    <button type="button" class="btn btn-outline-primary btn-sm" onclick="viewTradeDetail('{{ trade.ticket }}')">
+                                                        <i class="bi bi-eye"></i>
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-warning btn-sm" onclick="modifyTrade('{{ trade.ticket }}')">
+                                                        <i class="bi bi-gear"></i>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    {% else %}
+                                        <tr>
+                                            <td colspan="11" class="text-center text-muted py-4">
+                                                <i class="bi bi-info-circle fs-2 mb-2"></i>
+                                                <div>Nenhum trade executado ainda</div>
+                                            </td>
+                                        </tr>
+                                    {% endif %}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginação -->
+                        {% if trades_data and trades_data|length > 10 %}
+                        <nav aria-label="Paginação" class="mt-3">
+                            <ul class="pagination justify-content-center">
+                                <li class="page-item disabled">
+                                    <a class="page-link" href="#" tabindex="-1">Anterior</a>
+                                </li>
+                                <li class="page-item active">
+                                    <a class="page-link" href="#">1</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="#">2</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="#">3</a>
+                                </li>
+                                <li class="page-item">
+                                    <a class="page-link" href="#">Próximo</a>
+                                </li>
+                            </ul>
+                        </nav>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Chart -->
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-bar-chart-fill text-primary me-2"></i>Evolução do Capital - Últimos 30 Dias
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="capitalChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">
+                            <i class="bi bi-pie-chart-fill text-warning me-2"></i>Resumo por Estratégia
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="strategyChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats do período -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="bi bi-calendar-week me-2"></i>Estatísticas do Período
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-6">
+                                <small class="text-muted d-block">Melhor Trade</small>
+                                <div class="fw-bold text-success">{{ best_trade|default:"$245.67" }}</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Pior Trade</small>
+                                <div class="fw-bold text-danger">{{ worst_trade|default:"-$89.23" }}</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Drawdown Máx</small>
+                                <div class="fw-bold text-warning">{{ max_drawdown|default:"5.2%" }}</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted d-block">Sharp Ratio</small>
+                                <div class="fw-bold text-info">{{ sharpe_ratio|default:"1.45" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // Dados simulados para os gráficos (seria gerado dinamicamente)
+        const tradesData = [
+            {% for trade in trades_data %}
+            {
+                ticket: "{{ trade.ticket }}",
+                symbol: "{{ trade.symbol }}",
+                type: "{{ trade.type }}",
+                volume: {{ trade.volume }},
+                entry_price: {{ trade.entry_price }},
+                profit: {% if trade.profit %}{{ trade.profit }}{% else %}null{% endif %},
+                status: "{{ trade.status }}"
+            }{% if not forloop.last %},{% endif %}
+            {% endfor %}
+        ];
+
+        // Funcionalidade dos filtros
+        document.addEventListener('DOMContentLoaded', function() {
+            const filters = document.querySelectorAll('select[id$="Filter"]');
+            filters.forEach(filter => {
+                filter.addEventListener('change', applyFilters);
+            });
+
+            // Inicializar gráficos
+            initializeCharts();
+        });
+
+        function applyFilters() {
+            const symbolFilter = document.getElementById('symbolFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const sortFilter = document.getElementById('sortFilter').value;
+
+            const tableRows = document.querySelectorAll('#tradesTable tbody tr');
+
+            const filteredRows = Array.from(tableRows).filter(row => {
+                if (row.cells.length < 11) return true; // Header or empty rows
+
+                const symbol = row.cells[1].textContent.trim();
+                const type = row.cells[2].textContent.trim();
+                const statusCell = row.cells[7];
+                const status = statusCell ? statusCell.textContent.trim() : '';
+
+                let show = true;
+
+                // Filter by symbol
+                if (symbolFilter !== 'all' && !symbol.includes(symbolFilter.replace('c', ''))) {
+                    show = false;
+                }
+
+                // Filter by type
+                if (typeFilter !== 'all' && !type.includes(typeFilter)) {
+                    show = false;
+                }
+
+                // Filter by status
+                if (statusFilter !== 'all') {
+                    if (statusFilter === 'OPEN' && !status.includes('Aberto')) show = false;
+                    if (statusFilter === 'CLOSED_PROFIT' && !status.includes('Fechado P')) show = false;
+                    if (statusFilter === 'CLOSED_LOSS' && !status.includes('Fechado L')) show = false;
+                    if (statusFilter === 'CANCELLED' && status !== 'CANCELLED') show = false;
+                }
+
+                return show;
+            });
+
+            // Sort results
+            if (sortFilter !== 'newest') {
+                filteredRows.sort((a, b) => {
+                    const aIndex = Array.from(tableRows).indexOf(a);
+                    const bIndex = Array.from(tableRows).indexOf(b);
+
+                    switch (sortFilter) {
+                        case 'oldest':
+                            return aIndex - bIndex;
+                        case 'profit_desc':
+                            const aProfit = parseFloat(a.cells[6].textContent.replace(/[$,]/g, '')) || 0;
+                            const bProfit = parseFloat(b.cells[6].textContent.replace(/[$,]/g, '')) || 0;
+                            return bProfit - aProfit;
+                        case 'profit_asc':
+                            const aProfitAsc = parseFloat(a.cells[6].textContent.replace(/[$,]/g, '')) || 0;
+                            const bProfitAsc = parseFloat(b.cells[6].textContent.replace(/[$,]/g, '')) || 0;
+                            return aProfitAsc - bProfitAsc;
+                        default:
+                            return bIndex - aIndex;
+                    }
+                });
+            }
+
+            // Hide all rows first
+            tableRows.forEach(row => {
+                row.style.display = 'none';
+            });
+
+            // Show filtered and sorted rows
+            filteredRows.forEach(row => {
+                row.style.display = '';
+            });
+        }
+
+        function initializeCharts() {
+            // Capital evolution chart
+            const capitalCtx = document.getElementById('capitalChart');
+            if (capitalCtx) {
+                new Chart(capitalCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Dia 1', 'Dia 5', 'Dia 10', 'Dia 15', 'Dia 20', 'Dia 25', 'Dia 30'],
+                        datasets: [{
+                            label: 'Capital Líquido',
+                            data: [10000, 10245, 10156, 10467, 10321, 10567, 10743],
+                            borderColor: 'rgb(13, 110, 253)',
+                            backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        }, {
+                            label: 'Drawdown',
+                            data: [0, -89, -234, -122, 0, 0, 0],
+                            borderColor: 'rgb(220, 53, 69)',
+                            backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            }
+                        },
+                        scales: {
+                            y: {
+                                ticks: {
+                                    callback: function(value) {
+                                        return '$' + value.toLocaleString();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Strategy pie chart
+            const strategyCtx = document.getElementById('strategyChart');
+            if (strategyCtx) {
+                new Chart(strategyCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['MLP Long', 'MLP Short', 'Scalping', 'Breakout'],
+                        datasets: [{
+                            data: [45, 35, 15, 5],
+                            backgroundColor: [
+                                'rgba(25, 135, 84, 0.8)',
+                                'rgba(13, 110, 253, 0.8)',
+                                'rgba(255, 193, 7, 0.8)',
+                                'rgba(108, 117, 125, 0.8)'
+                            ],
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        function viewTradeDetail(ticket) {
+            alert(`Visualizando detalhes do trade ${ticket}`);
+            // Aqui seria implementada uma modal ou redirecionamento para detalhes
+        }
+
+        function modifyTrade(ticket) {
+            alert(`Modificando trade ${ticket}`);
+            // Aqui seria implementada funcionalidade de modificar SL/TP
+        }
+
+        function exportTrades() {
+            alert('Funcionalidade de export Excel seria implementada aqui');
+        }
+
+        function printTrades() {
+            window.print();
+        }
+    </script>
+</body>
+</html>

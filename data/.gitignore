@@ -1,0 +1,28 @@
+# Sensitive data that should not be committed
+*.sensitive
+*private*
+*secret*
+
+# Large files that shouldn't be committed
+large_*.json
+*.large
+big_*.json
+
+# Temporary data
+temp/
+tmp/
+cache/
+
+# Logs
+*.log
+
+# Backups
+*.bak
+*.backup
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Git ignore this file itself if accidentally created patterns that match it
+# .gitignore
