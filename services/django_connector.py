@@ -46,7 +46,7 @@ try:
     django_ready = True
     logger.info(f"Django configurado com sucesso - DB: {db_path}")
 
-    from quant_app.models import MLPAnalysis, MLPTrade, MLPDailyStats
+    from services.quant_app.models import MLPAnalysis, MLPTrade, MLPDailyStats
     logger.info("Modelos Django MLP importados com sucesso")
 
 except Exception as e:

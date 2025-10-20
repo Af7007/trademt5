@@ -129,7 +129,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # MLP Trading System Settings
 MLP_SETTINGS = {
-    'FLASK_API_BASE_URL': 'http://localhost:5001',
+    'FLASK_API_BASE_URL': 'http://localhost:5000',
     'DEFAULT_TIMEZONE': 'America/Sao_Paulo',
     'DEFAULT_SYMBOLS': ['BTCUSDc', 'EURUSD', 'GBPUSD', 'USDJPY'],
     'ANALYSIS_TIMEOUT': 30,  # seconds

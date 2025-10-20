@@ -22,7 +22,7 @@ class MLPTradingBot:
 
         # URLs das APIs (ajuste conforme necessário)
         self.api_base_url = "http://localhost:5000"  # Flask APIs (MLP Bot)
-        self.django_base_url = "http://localhost:5001"  # Django web dashboards
+        self.django_base_url = "http://localhost:8000"  # Django web dashboards
 
     def start(self):
         """Inicia o bot de trading"""

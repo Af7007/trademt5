@@ -36,7 +36,7 @@ def api_endpoints_view(request: HttpRequest) -> HttpResponse:
                 }
             },
             "django_dashboard": {
-                "url": "http://localhost:5001",
+                "url": "http://localhost:8000",
                 "description": "Dashboard administrativo Django",
                 "endpoints": {
                     "admin": "/admin/",

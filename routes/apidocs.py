@@ -40,7 +40,7 @@ API_DOCUMENTATION_HTML = """
             <ul>
                 <li><strong>API Principal (Flask):</strong> <code>http://localhost:5000</code> - Sistema completo de trading</li>
                 <li><strong>MCP Server:</strong> <code>http://localhost:3000</code> - Interface LLM com ferramentas</li>
-                <li><strong>Django Dashboard:</strong> <code>http://localhost:5001</code> - Interface administrativa</li>
+                <li><strong>Django Dashboard:</strong> <code>http://localhost:8000</code> - Interface administrativa</li>
                 <li><strong>Documentação API:</strong> <code>http://localhost:5000/apidocs</code> - Esta página</li>
             </ul>
         </div>
@@ -357,8 +357,8 @@ python -m bot.api_controller  # Usará porta 5001</code></pre>
                     <li><strong>Test Frontend:</strong> http://localhost:3000/test-frontend.html</li>
                 </ul>
 
-                <h6>Django Dashboard (Porta 5001)</h6>
-                <p>Interface administrativa em <code>http://localhost:5001</code> com controle completo do sistema.</p>
+                <h6>Django Dashboard (Porta 8000)</h6>
+                <p>Interface administrativa em <code>http://localhost:8000</code> com controle completo do sistema.</p>
             </div>
         </div>
 
@@ -444,7 +444,7 @@ def api_endpoints():
             ]
         },
         "django_dashboard": {
-            "url": "http://localhost:5001",
+            "url": "http://localhost:8000",
             "description": "Dashboard administrativo Django"
         }
     }
