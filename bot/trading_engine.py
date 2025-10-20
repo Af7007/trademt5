@@ -18,25 +18,9 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.mt5_connection import mt5_connection, MT5ConnectionError
 
-# Django setup for MLP storage
-import os
-import sys
-import django
-from pathlib import Path
-
-# Add project root to path
-project_root = Path(__file__).parent.parent
-sys.path.append(str(project_root))
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_server.settings')
-
-try:
-    django.setup()
-    from services.quant_app.models import MLPAnalysis, MLPTrade
-    django_storage_available = True
-    print("[SUCCESS] Django MLP Storage loaded successfully")
-except Exception as e:
-    django_storage_available = False
-    print(f"[ERROR] Django MLP Storage not available: {e}")
+# Django setup for MLP storage - REMOVED
+# Agora usa apenas JSON storage
+django_storage_available = False
 
 
 class TradingEngine:
@@ -191,27 +175,7 @@ class TradingEngine:
                     'timestamp': datetime.now()
                 }
 
-                # Salvar trade no Django se disponível
-                if django_storage_available and analysis_id:
-                    try:
-                        try:
-                            analysis_obj = MLPAnalysis.objects.get(id=analysis_id)
-                        except MLPAnalysis.DoesNotExist:
-                            analysis_obj = None
 
-                        trade = MLPTrade.objects.create(
-                            ticket=ticket,
-                            symbol=self.config.trading.symbol,
-                            type=signal.upper(),
-                            volume=self.config.trading.lot_size,
-                            entry_price=current_price,
-                            sl_price=sl if sl > 0 else None,
-                            tp_price=tp if tp > 0 else None,
-                            analysis=analysis_obj
-                        )
-                        self.logger.info(f"Trade salvo no Django - Ticket: {ticket}, ID: {trade.id}")
-                    except Exception as e:
-                        self.logger.error(f"Erro ao salvar trade: {str(e)}")
 
                 self.logger.info(f"Operação executada: {signal} (Ticket: {ticket}, Confiança: {confidence:.2f})")
                 return {
@@ -308,46 +272,18 @@ class TradingEngine:
                 }
             }
 
-            # Salvar no Django
-            analysis_id = None
-            if django_storage_available:
-                try:
-                    analysis = MLPAnalysis.objects.create(
-                        symbol=analysis_data['symbol'],
-                        timeframe='M1',
-                        signal=analysis_data['signal'],
-                        confidence=analysis_data['confidence'],
-                        rsi=analysis_data['indicators']['rsi'],
-                        macd_signal=analysis_data['indicators']['macd_signal'],
-                        bb_upper=analysis_data['indicators']['bb_upper'],
-                        bb_lower=analysis_data['indicators']['bb_lower'],
-                        sma_20=analysis_data['indicators']['sma_20'],
-                        sma_50=analysis_data['indicators']['sma_50'],
-                        price_open=analysis_data['market_data']['open'],
-                        price_high=analysis_data['market_data']['high'],
-                        price_low=analysis_data['market_data']['low'],
-                        price_close=analysis_data['market_data']['close'],
-                        volume=analysis_data['market_data']['volume'],
-                        market_conditions=json.dumps(analysis_data['market_conditions']),
-                        technical_signals=json.dumps(analysis_data['technical_signals'])
-                    )
-                    analysis_id = analysis.id
-                    self.logger.info(f"Análise salva no Django - ID: {analysis_id}")
-                except Exception as e:
-                    self.logger.error(f"Erro ao salvar análise: {str(e)}")
+            # Analysis saved using JSON storage instead of Django
 
             # Executar se sinal for BUY ou SELL
             if signal in ['BUY', 'SELL']:
-                result = self.execute_signal(signal, confidence, analysis_id)
-                result['analysis_id'] = analysis_id
+                result = self.execute_signal(signal, confidence, None)
                 return result
             else:
                 result = {
                     'success': True,
                     'signal': 'HOLD',
                     'confidence': confidence,
-                    'message': 'Sinal HOLD - nenhuma operação executada',
-                    'analysis_id': analysis_id
+                    'message': 'Sinal HOLD - nenhuma operação executada'
                 }
                 return result
 

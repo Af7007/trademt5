@@ -24,7 +24,7 @@ class MT5Connection:
 
     def initialize(self) -> bool:
         """
-        Initialize MT5 connection
+        Initialize MT5 connection (connect to running MT5 terminal)
 
         Returns:
             bool: True if successful
@@ -40,20 +40,18 @@ class MT5Connection:
             if not mt5.initialize():
                 error_code, error_msg = mt5.last_error()
                 raise MT5InitializationError(
-                    f"MT5 initialization failed: {error_msg}",
+                    f"MT5 initialization failed: {error_msg} (Certifique-se que MT5 está aberto)",
                     code=error_code
                 )
 
             self._initialized = True
-            logger.info("MT5 initialized successfully")
+            logger.info("MT5 initialized successfully - conectado ao terminal em execução")
 
-            # Auto-login if credentials are provided
-            if settings.MT5_LOGIN and settings.MT5_PASSWORD and settings.MT5_SERVER:
-                self.login(
-                    login=int(settings.MT5_LOGIN),
-                    password=settings.MT5_PASSWORD,
-                    server=settings.MT5_SERVER
-                )
+            # Verificar se há uma conta logada
+            account_info = mt5.account_info()
+            if account_info is not None:
+                self._logged_in = True
+                logger.info(f"MT5 conta detectada: {account_info.login} @ {account_info.server}")
 
             return True
 

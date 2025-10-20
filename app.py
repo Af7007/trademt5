@@ -857,11 +857,6 @@ if __name__ == '__main__':
     if not mt5.initialize():
         logger.error("Failed to initialize MT5.")
     else:
-        # BOT DESABILITADO - Removido o auto-start do scalping bot
-        # Para habilitar novamente, descomente as linhas abaixo:
-        # bot_thread = threading.Thread(target=start_scalping_bot_background, daemon=True)
-        # bot_thread.start()
-        # logger.info("Thread do Scalping Bot iniciada em background")
-        logger.info("Scalping Bot está DESABILITADO - Use as rotas /scalping/start para iniciar manualmente")
+        logger.info("MT5 inicializado com sucesso")
 
     app.run(host='0.0.0.0', port=int(os.environ.get('MT5_API_PORT', 5000)))
