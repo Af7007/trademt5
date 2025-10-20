@@ -24,6 +24,12 @@ from routes.scalping_routes import scalping_bp
 # Import bot MLP API
 from bot.api_controller import BotAPIController
 
+# Import services
+from services.market_service import market_service
+from services.cache_service import cache_service
+from services.ollama_service import ollama_service
+from services.sync_mt5_trades_service import mt5_trade_sync
+
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -820,6 +826,565 @@ def mlp_update_config():
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 
+# ===== ROTAS OLLAMA IA INTEGRATION =====
+
+@app.route('/ollama/health', methods=['GET'])
+def ollama_health():
+    """
+    Verifica se Ollama está rodando e acessível
+    ---
+    tags:
+      - Ollama AI
+    responses:
+      200:
+        description: Status do Ollama
+        schema:
+          type: object
+          properties:
+            succcess:
+              type: boolean
+            data:
+              type: object
+    """
+    from services.ollama_service import ollama_service
+    result = ollama_service.check_connection()
+    return jsonify(result), 200 if result.get('success') else 503
+
+
+@app.route('/ollama/models', methods=['GET'])
+def ollama_list_models():
+    """
+    Lista modelos instalados no Ollama
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: refresh
+        in: query
+        type: boolean
+        default: false
+        description: Forçar atualização da cache
+    responses:
+      200:
+        description: Lista de modelos
+    """
+    from services.ollama_service import ollama_service
+    refresh = request.args.get('refresh', 'false').lower() == 'true'
+    result = ollama_service.list_models(refresh=refresh)
+    return jsonify(result), 200 if result.get('success') else 503
+
+
+@app.route('/ollama/models/<model_name>', methods=['GET'])
+def ollama_model_info(model_name):
+    """
+    Obtém informações sobre um modelo específico
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: model_name
+        in: path
+        type: string
+        required: true
+        description: Nome do modelo
+    responses:
+      200:
+        description: Informações do modelo
+    """
+    from services.ollama_service import ollama_service
+    result = ollama_service.get_model_info(model_name)
+    return jsonify(result), 200 if result.get('success') else 404
+
+
+@app.route('/ollama/pull/<model_name>', methods=['POST'])
+def ollama_pull_model(model_name):
+    """
+    Baixa um modelo do Ollama
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: model_name
+        in: path
+        type: string
+        required: true
+        description: Nome do modelo a baixar
+    responses:
+      200:
+        description: Modelo baixado
+    """
+    from services.ollama_service import ollama_service
+    result = ollama_service.pull_model(model_name)
+    return jsonify(result), 200 if result.get('success') else 500
+
+
+@app.route('/ollama/generate', methods=['POST'])
+def ollama_generate():
+    """
+    Gera texto usando um modelo Ollama
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: generate_request
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            prompt:
+              type: string
+              example: "Explique como funcionam as médias móveis no trading"
+            model:
+              type: string
+              default: "mistral"
+              example: "mistral"
+            stream:
+              type: boolean
+              default: false
+              example: false
+            options:
+              type: object
+              properties:
+                temperature:
+                  type: number
+                  example: 0.7
+                num_predict:
+                  type: integer
+                  example: 100
+    responses:
+      200:
+        description: Texto gerado
+    """
+    from services.ollama_service import ollama_service
+
+    try:
+        data = request.get_json()
+        if not data or 'prompt' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Campo "prompt" é obrigatório',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+
+        prompt = data['prompt']
+        model = data.get('model', 'mistral')
+        stream = data.get('stream', False)
+        options = data.get('options', {})
+
+        result = ollama_service.generate_text(
+            prompt=prompt,
+            model=model,
+            stream=stream,
+            options=options
+        )
+
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@app.route('/ollama/chat', methods=['POST'])
+def ollama_chat():
+    """
+    Conversação com um modelo Ollama
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: chat_request
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            messages:
+              type: array
+              items:
+                type: object
+                properties:
+                  role:
+                    type: string
+                    enum: [system, user, assistant]
+                  content:
+                    type: string
+              example:
+                [{"role": "user", "content": "Explique RSI"}]
+            model:
+              type: string
+              default: "mistral"
+            options:
+              type: object
+    responses:
+      200:
+        description: Resposta do chat
+    """
+    from services.ollama_service import ollama_service
+
+    try:
+        data = request.get_json()
+        if not data or 'messages' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Campo "messages" é obrigatório',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+
+        messages = data['messages']
+        model = data.get('model', 'mistral')
+        options = data.get('options', {})
+
+        result = ollama_service.chat_completion(
+            messages=messages,
+            model=model,
+            options=options
+        )
+
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@app.route('/ollama/analyze/market', methods=['POST'])
+def ollama_analyze_market():
+    """
+    Análise de sentimento de mercado usando IA
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: market_data
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            bid:
+              type: number
+              example: 45000.50
+            ask:
+              type: number
+              example: 45002.80
+            spread:
+              type: number
+              example: 2.3
+            rsi:
+              type: number
+              example: 55.2
+            sma_20:
+              type: number
+              example: 44800.0
+            sma_50:
+              type: number
+              example: 44500.0
+            positions_count:
+              type: integer
+              example: 0
+            last_signal:
+              type: string
+              example: "HOLD"
+    responses:
+      200:
+        description: Análise de mercado
+    """
+    from services.ollama_service import ollama_service
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Dados de mercado obrigatórios',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+
+        result = ollama_service.analyze_market_sentiment(data, asset="BTCUSD")
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@app.route('/ollama/signal/trading', methods=['POST'])
+def ollama_trading_signals():
+    """
+    Gera sinais de trading profissional usando IA
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: market_context
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            balance:
+              type: number
+              example: 1000.0
+            positions:
+              type: integer
+              example: 0
+            recent_analysis:
+              type: string
+              example: "Mercado está em alta moderada"
+            risk_tolerance:
+              type: string
+              enum: [conservative, moderate, aggressive]
+              default: conservative
+              example: "conservative"
+    responses:
+      200:
+        description: Sinais de trading
+    """
+    from services.ollama_service import ollama_service
+
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                'success': False,
+                'error': 'Dados de contexto obrigatórios',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+
+        risk_tolerance = data.get('risk_tolerance', 'conservative')
+        result = ollama_service.generate_trading_signals(data, risk_tolerance=risk_tolerance)
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@app.route('/ollama/interpret/results', methods=['POST'])
+def ollama_interpret_results():
+    """
+    Interpreta resultados de trading com IA
+    ---
+    tags:
+      - Ollama AI
+    parameters:
+      - name: trading_data
+        in: body
+        required: true
+        schema:
+          type: object
+          properties:
+            trades_history:
+              type: array
+              items:
+                type: object
+                properties:
+                  ticket:
+                    type: string
+                  profit:
+                    type: number
+              example: [{"ticket": "123", "profit": 25.5}]
+            performance_metrics:
+              type: object
+              properties:
+                win_rate:
+                  type: number
+                  example: 72.5
+                total_profit:
+                  type: number
+                  example: 850.0
+                total_trades:
+                  type: integer
+                  example: 50
+                winning_trades:
+                  type: integer
+                  example: 36
+                losing_trades:
+                  type: integer
+                  example: 14
+    responses:
+      200:
+        description: Interpretação de resultados
+    """
+    from services.ollama_service import ollama_service
+
+    try:
+        data = request.get_json()
+        if not data or 'trades_history' not in data or 'performance_metrics' not in data:
+            return jsonify({
+                'success': False,
+                'error': 'Campos trades_history e performance_metrics obrigatórios',
+                'timestamp': datetime.now().isoformat()
+            }), 400
+
+        trades_history = data['trades_history']
+        performance_metrics = data['performance_metrics']
+
+        result = ollama_service.interpret_trading_results(trades_history, performance_metrics)
+        return jsonify(result), 200 if result.get('success') else 500
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+# ===== FIM DAS ROTAS OLLAMA =====
+
+# ===== ROTAS SYNC MT5 TRADES SERVICE =====
+
+@app.route('/sync/status', methods=['GET'])
+def sync_mt5_status():
+    """
+    Obtém status do serviço de sincronização MT5
+    ---
+    tags:
+      - Sync MT5 Trades
+    responses:
+      200:
+        description: Status da sincronização
+        schema:
+          type: object
+          properties:
+            is_running:
+              type: boolean
+            last_sync:
+              type: string
+            total_new_trades:
+              type: integer
+            uptime_seconds:
+              type: integer
+    """
+    from services.sync_mt5_trades_service import mt5_trade_sync
+    status = mt5_trade_sync.get_status()
+    return jsonify(status), 200
+
+
+@app.route('/sync/manual-sync', methods=['POST'])
+def sync_mt5_manual():
+    """
+    Executa sincronização manual de trades do MT5 (recomendado para desenvolvimento)
+    ---
+    tags:
+      - Sync MT5 Trades
+    responses:
+      200:
+        description: Sincronização executada
+    """
+    from services.sync_mt5_trades_service import MT5TradeSyncService
+
+    # Criar instância nova para evitar problemas de thread com Flask
+    sync_service = MT5TradeSyncService(sync_interval=60, lookback_days=7)
+    result = sync_service.sync_now()
+
+    if result and 'error' not in result:
+        return jsonify({
+            'success': True,
+            'message': 'Sincronização manual executada',
+            'result': result,
+            'timestamp': datetime.now().isoformat()
+        }), 200
+    else:
+        return jsonify({
+            'success': False,
+            'message': 'Falha na sincronização manual',
+            'result': result or {'error': 'sync_failed'},
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+
+@app.route('/sync/stop', methods=['POST'])
+def sync_mt5_stop():
+    """
+    Para o serviço de sincronização MT5
+    ---
+    tags:
+      - Sync MT5 Trades
+    responses:
+      200:
+        description: Serviço parado
+    """
+    from services.sync_mt5_trades_service import mt5_trade_sync
+
+    if not mt5_trade_sync.is_running:
+        return jsonify({
+            'message': 'Serviço de sincronização não está rodando'
+        }), 200
+
+    success = mt5_trade_sync.stop()
+    return jsonify({
+        'success': success,
+        'message': 'Serviço de sincronização MT5 parado',
+        'timestamp': datetime.now().isoformat()
+    }), 200
+
+
+@app.route('/sync/now', methods=['POST'])
+def sync_mt5_now():
+    """
+    Executa sincronização MT5 imediata
+    ---
+    tags:
+      - Sync MT5 Trades
+    responses:
+      200:
+        description: Sincronização executada
+    """
+    from services.sync_mt5_trades_service import mt5_trade_sync
+    result = mt5_trade_sync.sync_now()
+
+    if result and 'error' not in result:
+        return jsonify(result), 200
+    else:
+        return jsonify(result), 500
+
+
+@app.route('/sync/summary', methods=['GET'])
+def sync_mt5_summary():
+    """
+    Obtém resumo dos trades sincronizados
+    ---
+    tags:
+      - Sync MT5 Trades
+    parameters:
+      - name: days
+        in: query
+        type: integer
+        default: 30
+        description: Dias para análise
+    responses:
+      200:
+        description: Resumo dos trades
+    """
+    days = int(request.args.get('days', 30))
+    from services.sync_mt5_trades_service import mt5_trade_sync
+    summary = mt5_trade_sync.get_trade_summary(days=days)
+
+    if 'error' not in summary:
+        return jsonify(summary), 200
+    else:
+        return jsonify(summary), 500
+
+
+# ===== FIM ROTAS SYNC SERVICE =====
+
+
 def start_scalping_bot_background():
     """
     Inicia o bot de scalping em background após um pequeno delay
@@ -854,9 +1419,104 @@ def start_scalping_bot_background():
 
 
 if __name__ == '__main__':
-    if not mt5.initialize():
-        logger.error("Failed to initialize MT5.")
+    print("\n" + "="*80)
+    print("🏆   MT5 TRADEMLT PLATFORM - INICIALIZANDO SISTEMA COMPLETO   🏆")
+    print("="*80)
+
+    # 1. Teste Conexão MT5
+    print("\n🔗 [1/6] Verificando conexão MT5...")
+    mt5_initialized = mt5.initialize()
+    if not mt5_initialized:
+        print("❌ MT5: FALHA na inicialização")
+        print("⚠️  Sistema continuará, mas funcionalidades MT5 não estarão disponíveis")
     else:
-        logger.info("MT5 inicializado com sucesso")
+        print("✅ MT5: Conectado e inicializado")
+    print()
+
+    # 2. Teste Conexão DB
+    print("💾 [2/6] Verificando conexão SQLite Database...")
+    from services.mlp_storage import mlp_storage
+    try:
+        # Tentar uma operação simples no DB
+        test_result = mlp_storage.get_analyses(limit=1)
+        print("✅ SQLite DB: Conectado e funcional")
+    except Exception as e:
+        print(f"❌ SQLite DB: Erro na conexã - {str(e)}")
+    print()
+
+    # 3. Teste Bot Controller
+    print("🤖 [3/6] Inicializando controlador MLP Bot...")
+    try:
+        status = bot_controller.trading_engine.get_status()
+        if status:
+            print("✅ MLP Bot: Controlador inicializado")
+        else:
+            print("⚠️  MLP Bot: Controlador com problemas")
+    except Exception as e:
+        print(f"❌ MLP Bot: Erro no controlador - {str(e)}")
+    print()
+
+    # 4. Teste APIs E2E
+    print("🧪 [4/6] Executando testes E2E APIs...")
+    try:
+        # Teste Flask health
+        health_response = ping()
+        if health_response and health_response.get('status') == 'pong':
+            print("✅ APIs: Flask health check OK")
+        else:
+            print("❌ APIs: Flask health check FAIL")
+
+        # Teste MLP bot health
+        mlp_response = mlp_health_check()
+        if mlp_response and mlp_response.get('status') == 'healthy':
+            print("✅ APIs: MLP Bot health check OK")
+        else:
+            print("❌ APIs: MLP Bot health check FAIL")
+
+    except Exception as e:
+        print(f"❌ APIs: Erro nos testes - {str(e)}")
+    print()
+
+    # 5. Verificar status sistema
+    print("📊 [5/6] Verificando status sistema...")
+    try:
+        positions_count = 0
+        account_balance = 0.00
+        bot_running = False
+
+        if mt5_initialized:
+            # Verificar posições
+            positions = mt5.positions_get()
+            positions_count = len(positions) if positions else 0
+
+            # Verificar conta
+            account = mt5.account_info()
+            account_balance = account.balance if account else 0.00
+
+        # Verificar se bot vai rodar
+        try:
+            bot_status = bot_controller.trading_engine.get_status()
+            bot_running = bot_status.get('is_running', False)
+        except:
+            bot_running = False
+
+        print(f"📍 Posições em aberto: {positions_count}")
+        print(f"💰 Saldo da conta MT5: $ {account_balance:.2f} USC")
+        print(f"🤖 Bots rodando: {'SIM' if bot_running else 'NÃO'}")
+
+    except Exception as e:
+        print(f"❌ Status sistema: Erro ao verificar - {str(e)}")
+    print()
+
+    # 6. Mensagem final
+    print("🎯 [6/6] SISTEMA PRONTO PARA OPERACÃO!")
+    print("🎉 Bons ganhos! 📈💹")
+    print("="*80)
+
+    # Iniciar servidor
+    print(f"\n📡 Servidor Flask iniciando na porta {int(os.environ.get('MT5_API_PORT', 5000))}...")
+    print("🔗 Acesso: http://localhost:5000/apidocs/ (Swagger UI completo)")
+    print("🔗 ML TradeMLT Platform - Professional Trading System v2.0")
+    print("="*80)
 
     app.run(host='0.0.0.0', port=int(os.environ.get('MT5_API_PORT', 5000)))
