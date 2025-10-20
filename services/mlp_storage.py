@@ -101,6 +101,41 @@ class MLPDailyStats(Base):
     avg_profit = Column(Float, nullable=True)
 
 
+class MT5TradeHistory(Base):
+    """Tabela para histórico de trades da conta MT5 (não apenas do bot)"""
+    __tablename__ = "mt5_trade_history"
+
+    id = Column(Integer, primary_key=True, index=True)
+    ticket = Column(String, unique=True, index=True)
+    order = Column(String, nullable=True)
+    symbol = Column(String, index=True)
+    type = Column(String)  # BUY, SELL
+    entry = Column(String, default="OUT")  # IN, OUT, REVERSAL
+    magic = Column(Integer, nullable=True)  # 0 para trades manuais
+    volume = Column(Float)
+    price = Column(Float)
+
+    # Resultados financeiros
+    commission = Column(Float, default=0.0)
+    swap = Column(Float, default=0.0)
+    profit = Column(Float, default=0.0)
+    fee = Column(Float, default=0.0)
+
+    # Informações adicionais
+    comment = Column(String, nullable=True)
+    external_id = Column(String, nullable=True)
+    time = Column(DateTime)
+
+    # Metadata
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Índices para performance
+    __table_args__ = (
+        {'sqlite_autoincrement': True},
+    )
+
+
 class MLPStorage:
     """Classe de storage persistente usando SQLite"""
 
@@ -393,6 +428,154 @@ class MLPStorage:
         """Atualiza configuração do bot MLP"""
         self.bot_config.update(updates)
         return True
+
+    def get_mt5_trade_history(self, symbol: Optional[str] = None, days: int = 30) -> List[Dict]:
+        """Obtém histórico de trades MT5 do banco de dados"""
+        db = self.get_db()
+        try:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+            query = db.query(MT5TradeHistory).filter(MT5TradeHistory.time >= cutoff_date)
+
+            if symbol and symbol != 'all':
+                query = query.filter(MT5TradeHistory.symbol == symbol)
+
+            trades = query.order_by(MT5TradeHistory.time.desc()).all()
+
+            result = []
+            for trade in trades:
+                trade_dict = {
+                    'id': trade.id,
+                    'ticket': trade.ticket,
+                    'order': trade.order,
+                    'symbol': trade.symbol,
+                    'type': trade.type,
+                    'entry': trade.entry,
+                    'magic': trade.magic,
+                    'volume': float(trade.volume),
+                    'price': float(trade.price),
+                    'commission': float(trade.commission),
+                    'swap': float(trade.swap),
+                    'profit': float(trade.profit),
+                    'fee': float(trade.fee),
+                    'comment': trade.comment,
+                    'external_id': trade.external_id,
+                    'time': trade.time.isoformat(),
+                    'created_at': trade.created_at.isoformat(),
+                    'updated_at': trade.updated_at.isoformat()
+                }
+                result.append(trade_dict)
+
+            return result
+
+        finally:
+            db.close()
+
+    def save_mt5_trade_history(self, deals: List[Dict]) -> int:
+        """Salva histórico de trades MT5 no banco (upsert)"""
+        db = self.get_db()
+        saved_count = 0
+        try:
+            for deal in deals:
+                ticket = str(deal['ticket'])
+
+                # Verificar se já existe
+                existing = db.query(MT5TradeHistory).filter(MT5TradeHistory.ticket == ticket).first()
+
+                if existing:
+                    # Atualizar apenas se tiver dados mais recentes
+                    new_time = datetime.fromtimestamp(deal['time'])
+                    if new_time > existing.time:
+                        existing.time = new_time
+                        existing.updated_at = datetime.utcnow()
+                else:
+                    # Criar novo
+                    trade_obj = MT5TradeHistory(
+                        ticket=ticket,
+                        order=str(deal.get('order', '')),
+                        symbol=deal['symbol'],
+                        type=deal['type'],
+                        entry=deal['entry'],
+                        magic=deal.get('magic'),
+                        volume=deal['volume'],
+                        price=deal['price'],
+                        commission=deal.get('commission', 0.0),
+                        swap=deal.get('swap', 0.0),
+                        profit=deal.get('profit', 0.0),
+                        fee=deal.get('fee', 0.0),
+                        comment=deal.get('comment'),
+                        external_id=deal.get('external_id'),
+                        time=datetime.fromtimestamp(deal['time'])
+                    )
+                    db.add(trade_obj)
+                    saved_count += 1
+
+            db.commit()
+            return saved_count
+
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+
+    def get_mt5_trade_statistics(self, days: int = 30, symbol: Optional[str] = None) -> Dict:
+        """Calcula estatísticas de trades MT5"""
+        db = self.get_db()
+        try:
+            cutoff_date = datetime.utcnow() - timedelta(days=days)
+
+            query = db.query(MT5TradeHistory).filter(
+                MT5TradeHistory.time >= cutoff_date,
+                MT5TradeHistory.entry == 'OUT'  # Apenas trades finalizados
+            )
+
+            if symbol and symbol != 'all':
+                query = query.filter(MT5TradeHistory.symbol == symbol)
+
+            trades = query.all()
+
+            if not trades:
+                return {
+                    'total_trades': 0,
+                    'winning_trades': 0,
+                    'losing_trades': 0,
+                    'total_profit': 0.0,
+                    'win_rate': 0.0,
+                    'avg_profit': 0.0,
+                    'avg_loss': 0.0,
+                    'largest_win': 0.0,
+                    'largest_loss': 0.0
+                }
+
+            total_trades = len(trades)
+            winning_trades = len([t for t in trades if t.profit > 0])
+            losing_trades = total_trades - winning_trades
+            total_profit = sum(t.profit for t in trades)
+            win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
+
+            profits = [t.profit for t in trades if t.profit > 0]
+            losses = [abs(t.profit) for t in trades if t.profit < 0]
+
+            avg_profit = sum(profits) / len(profits) if profits else 0
+            avg_loss = sum(losses) / len(losses) if losses else 0
+            largest_win = max(profits) if profits else 0
+            largest_loss = max(losses) if losses else 0
+
+            return {
+                'total_trades': total_trades,
+                'winning_trades': winning_trades,
+                'losing_trades': losing_trades,
+                'total_profit': total_profit,
+                'win_rate': win_rate,
+                'avg_profit': avg_profit,
+                'avg_loss': avg_loss,
+                'largest_win': largest_win,
+                'largest_loss': largest_loss
+            }
+
+        finally:
+            db.close()
 
 
 # Instância global

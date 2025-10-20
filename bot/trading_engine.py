@@ -18,9 +18,13 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.mt5_connection import mt5_connection, MT5ConnectionError
 
-# Django setup for MLP storage - REMOVED
-# Agora usa apenas JSON storage
-django_storage_available = False
+# Setup MLP storage - now using SQLite database
+django_storage_available = False  # Natural progression from Django removal
+try:
+    from services.mlp_storage import mlp_storage
+    storage_available = True
+except ImportError:
+    storage_available = False
 
 
 class TradingEngine:
@@ -96,19 +100,58 @@ class TradingEngine:
     def execute_signal(self, signal: str, confidence: float = 0.5, analysis_id: int = None) -> Dict[str, Any]:
         """Executa operação baseada no sinal do modelo"""
         try:
+            # Import MT5 no início da função para evitar problemas de variável
+            import MetaTrader5 as mt5
+
             if not self.is_running:
                 return {'success': False, 'error': 'Bot não está rodando'}
 
-            if confidence < 0.6:  # Threshold mínimo de confiança
+            if confidence < 0.9:  # Threshold mínimo de confiança aumentado para 90%
                 self.logger.info(f"Confiança baixa ({confidence:.2f}), ignorando sinal: {signal}")
-                return {'success': False, 'error': 'Confiança baixa'}
+                return {'success': False, 'error': 'Confiança baixa - precisa 90%'}
 
-            # Verificar posições existentes usando mt5_connection
-            # Nota: mt5_connection não tem método get_positions, precisamos usar MT5 diretamente
+            # Aguardar/fechar posições existentes usando mt5_connection
+            # SOMENTE 1 POSIÇÃO POR VEZ - regra do usuário
             positions = mt5.positions_get()
-            if positions is not None and len(positions) >= self.config.trading.max_positions:
-                self.logger.info(f"Máximo de posições atingido ({len(positions)})")
-                return {'success': False, 'error': 'Máximo de posições atingido'}
+            if positions is not None and len(positions) > 0:
+                # Fechar todas as posições existentes primeiro
+                closed_count = 0
+                for pos in positions:
+                    if pos.magic == self.config.trading.magic_number:
+                        try:
+                            # Fechar posição
+                            close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+
+                            close_request = {
+                                "action": mt5.TRADE_ACTION_DEAL,
+                                "position": pos.ticket,
+                                "symbol": pos.symbol,
+                                "volume": pos.volume,
+                                "type": close_type,
+                                "magic": self.config.trading.magic_number,
+                                "comment": "Bot Rebalance - Max 1 Position"
+                            }
+
+                            close_result = mt5.order_send(close_request)
+                            if close_result.retcode == mt5.TRADE_RETCODE_DONE:
+                                closed_count += 1
+                                self.logger.info(f"Posição {pos.ticket} fechada - abrindo nova posição")
+
+                                # Salvar trade finalizado no histórico
+                                trade_update = {
+                                    'exit_price': close_result.price,
+                                    'profit': close_result.profit if hasattr(close_result, 'profit') else 0,
+                                    'exit_reason': 'CLOSED_FOR_NEW_TRADE'
+                                }
+                                try:
+                                    mlp_storage.update_trade(str(pos.ticket), trade_update)
+                                except Exception as e:
+                                    self.logger.error(f"Erro ao atualizar trade {pos.ticket}: {e}")
+
+                        except Exception as e:
+                            self.logger.error(f"Erro ao fechar posição {pos.ticket}: {e}")
+
+                self.logger.info(f"Fechou {closed_count} posições antes de abrir nova")
 
             # Obter preço atual usando mt5_connection
             symbol_info = mt5_connection.get_terminal_info()
@@ -116,7 +159,6 @@ class TradingEngine:
                 return {'success': False, 'error': 'Não foi possível obter informações do terminal'}
 
             # Para obter preços atuais, precisamos usar MT5 diretamente
-            import MetaTrader5 as mt5
             symbol_data = mt5.symbol_info(self.config.trading.symbol)
             if symbol_data is None:
                 return {'success': False, 'error': 'Não foi possível obter informações do símbolo'}
@@ -125,15 +167,21 @@ class TradingEngine:
 
             # Calcular SL e TP baseado na configuração
             point = symbol_data.point
-            sl_pips = self.config.trading.stop_loss_pips
-            tp_pips = self.config.trading.take_profit_pips
 
+            # TAKE PROFIT DEFINIDO COMO 1% DO PREÇO DE ENTRADA
+            tp_percentage = 0.01  # 1% take profit
+            tp = current_price * (1 + tp_percentage) if signal.upper() == 'BUY' else current_price * (1 - tp_percentage)
+
+            # STOP LOSS mínimo (5% distante)
+            sl_percentage = 0.05  # 5% stop loss mínimo
             if signal.upper() == 'BUY':
-                sl = current_price - (sl_pips * point * 10)  # Convert pips to price
-                tp = current_price + (tp_pips * point * 10)
+                sl = current_price - (current_price * sl_percentage)
             else:  # SELL
-                sl = current_price + (sl_pips * point * 10)
-                tp = current_price - (tp_pips * point * 10)
+                sl = current_price + (current_price * sl_percentage)
+
+            # Arredondar para dígitos do símbolo
+            sl = round(sl, symbol_data.digits)
+            tp = round(tp, symbol_data.digits)
 
             sl = round(sl, symbol_data.digits)
             tp = round(tp, symbol_data.digits)
@@ -166,6 +214,24 @@ class TradingEngine:
             ticket = result.order
 
             if ticket:
+                # Save trade to database if available
+                if storage_available:
+                    try:
+                        trade_data = {
+                            'ticket': str(ticket),
+                            'symbol': self.config.trading.symbol,
+                            'type': signal,
+                            'volume': self.config.trading.lot_size,
+                            'entry_price': current_price,
+                            'sl_price': sl,
+                            'tp_price': tp,
+                            'analysis_id': analysis_id
+                        }
+                        trade_id = mlp_storage.add_trade(trade_data)
+                        self.logger.info(f"Trade salvo no banco - ID: {trade_id}")
+                    except Exception as e:
+                        self.logger.error(f"Erro ao salvar trade no banco: {e}")
+
                 # Atualizar métricas
                 self.performance_metrics['total_trades'] += 1
                 self.last_prediction = {
@@ -174,8 +240,6 @@ class TradingEngine:
                     'ticket': ticket,
                     'timestamp': datetime.now()
                 }
-
-
 
                 self.logger.info(f"Operação executada: {signal} (Ticket: {ticket}, Confiança: {confidence:.2f})")
                 return {
@@ -272,11 +336,17 @@ class TradingEngine:
                 }
             }
 
-            # Analysis saved using JSON storage instead of Django
+            # Save analysis to database if available
+            if storage_available:
+                try:
+                    analysis_id = mlp_storage.add_analysis(analysis_data)
+                    self.logger.info(f"Análise salva no banco - ID: {analysis_id}")
+                except Exception as e:
+                    self.logger.error(f"Erro ao salvar análise no banco: {e}")
 
             # Executar se sinal for BUY ou SELL
             if signal in ['BUY', 'SELL']:
-                result = self.execute_signal(signal, confidence, None)
+                result = self.execute_signal(signal, confidence, analysis_data.get('id'))
                 return result
             else:
                 result = {
