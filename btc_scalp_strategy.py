@@ -444,8 +444,10 @@ class ConservativeScalpStrategy:
         """Analisa e exibe condições atuais do mercado"""
         last = df.iloc[-1]
 
+        # Calcular score percentual das condições ideais
+        market_ideal_score = self.calculate_market_ideal_score(df)
         logger.info("=" * 50)
-        logger.info("ANALISE DE MERCADO ATUAL - {}".format(self.symbol.upper()))
+        logger.info("ANALISE DE MERCADO ATUAL - {} - CONDICOES IDEAIS {:.0f}%".format(self.symbol.upper(), market_ideal_score))
         logger.info("=" * 50)
 
         # Parâmetros da estratégia
