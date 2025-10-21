@@ -89,12 +89,14 @@
         
         textarea {
             width: 100%;
+            max-width: 100%;
             height: 140px;
             border: 1px solid #ddd;
             padding: 8px;
             font-family: 'Courier New', monospace;
-            font-size: 11px;
+            font-size: 10px;
             resize: vertical;
+            box-sizing: border-box;
         }
         
         .btn-group {
@@ -285,6 +287,89 @@
             text-align: right;
             margin-top: 8px;
         }
+        
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .tab {
+            padding: 8px 16px;
+            background: #f5f5f5;
+            border: none;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            color: #666;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab.active {
+            background: white;
+            color: #2196F3;
+            border-bottom-color: #2196F3;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #333;
+        }
+        
+        .form-group input,
+        .form-group select {
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 11px;
+            width: 100%;
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2196F3;
+        }
+        
+        .form-section {
+            background: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        
+        .form-section-title {
+            font-size: 11px;
+            font-weight: 600;
+            color: #2196F3;
+            margin-bottom: 8px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid #e0e0e0;
+        }
     </style>
 </head>
 <body>
@@ -318,19 +403,146 @@
         <div class="main-grid">
             <div>
                 <div class="panel">
+                    <div class="panel-title">System Controls</div>
+                    <div class="btn-group">
+                        <button class="danger" onclick="emergencyStopAll()">🚨 Emergency Stop All</button>
+                        <button class="warning" onclick="forceHedge()" style="background: #ff9800;">⚖️ Forçar Hedge</button>
+                        <button class="secondary" onclick="refreshBotsList()">🔄 Refresh</button>
+                        <button class="secondary" onclick="retrainMLP()">🤖 Retreinar MLP</button>
+                    </div>
+                </div>
+                
+                <div class="panel">
                     <div class="panel-title">Create New Bot</div>
                     
-                    <div class="btn-group">
-                        <button class="secondary" onclick="loadTemplate('btc')">BTC Template</button>
-                        <button class="secondary" onclick="loadTemplate('xau')">XAU Template</button>
-                        <button class="secondary" onclick="clearConfig()">Clear</button>
+                    <div class="tabs">
+                        <button class="tab active" onclick="switchTab('form')">📝 Formulário</button>
+                        <button class="tab" onclick="switchTab('json')">{ } JSON</button>
                     </div>
                     
-                    <textarea id="botConfig" placeholder='{"symbol":"BTCUSDc","timeframe":"M1","lot_size":0.01,"take_profit":5000,"stop_loss":10000,"confidence_threshold":0.65,"max_positions":1}'></textarea>
+                    <!-- TAB: Formulário -->
+                    <div id="tab-form" class="tab-content active">
+                        <div class="btn-group">
+                            <button class="secondary" onclick="loadFormTemplate('btc')">BTC Template</button>
+                            <button class="secondary" onclick="loadFormTemplate('xau')">XAU Template</button>
+                            <button class="secondary" onclick="clearForm()">Limpar</button>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="form-section-title">⚙️ Configurações Básicas</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>Símbolo</label>
+                                    <select id="form_symbol">
+                                        <option value="BTCUSDc">BTCUSDc</option>
+                                        <option value="XAUUSDc">XAUUSDc</option>
+                                        <option value="EURUSDc">EURUSDc</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Timeframe</label>
+                                    <select id="form_timeframe">
+                                        <option value="M1">M1</option>
+                                        <option value="M5">M5</option>
+                                        <option value="M15">M15</option>
+                                        <option value="H1">H1</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Tamanho do Lote</label>
+                                    <input type="number" id="form_lot_size" value="0.01" step="0.01" min="0.01">
+                                </div>
+                                <div class="form-group">
+                                    <label>Take Profit (pips)</label>
+                                    <input type="number" id="form_take_profit" value="5000" step="100">
+                                </div>
+                                <div class="form-group">
+                                    <label>Stop Loss (pips)</label>
+                                    <input type="number" id="form_stop_loss" value="10000" step="100">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Posições</label>
+                                    <input type="number" id="form_max_positions" value="1" min="1">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="form-section-title">📊 Método de Análise</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="form_use_indicators" checked style="width: auto; margin-right: 5px;">
+                                        Usar Indicadores Técnicos (RSI, SMA)
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="form_use_mlp" style="width: auto; margin-right: 5px;">
+                                        Usar Modelo MLP (Machine Learning)
+                                    </label>
+                                </div>
+                            </div>
+                            <div style="font-size: 10px; color: #666; margin-top: 5px; padding: 5px; background: #fff3cd; border-radius: 3px;">
+                                ℹ️ <strong>Indicadores:</strong> Usa RSI e SMA para gerar sinais (padrão, mais confiável)<br>
+                                ℹ️ <strong>MLP:</strong> Usa modelo de Machine Learning treinado (experimental)
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="form-section-title">🤖 Trading Automático</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>
+                                        <input type="checkbox" id="form_auto_execute" style="width: auto; margin-right: 5px;">
+                                        Executar Trades Automaticamente
+                                    </label>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Trades Diários</label>
+                                    <input type="number" id="form_max_daily_trades" value="10" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Confiança Mínima (%)</label>
+                                    <input type="number" id="form_min_confidence" value="65" min="0" max="100">
+                                </div>
+                                <div class="form-group">
+                                    <label>Cooldown Após Trade (s)</label>
+                                    <input type="number" id="form_trade_cooldown" value="20" min="0" max="300">
+                                </div>
+                            </div>
+                            <div style="font-size: 10px; color: #666; margin-top: 5px; padding: 5px; background: #e3f2fd; border-radius: 3px;">
+                                ℹ️ <strong>Modo Hedge Ativo:</strong> O bot pode ter posições BUY e SELL ao mesmo tempo.<br>
+                                ℹ️ <strong>Cooldown:</strong> Intervalo em segundos após abrir trade antes de permitir novo trade.
+                            </div>
+                            <div style="font-size: 11px; color: #d32f2f; margin-top: 10px; padding: 10px; background: #ffebee; border-left: 4px solid #d32f2f; border-radius: 3px;">
+                                <strong>⚠️ PROTEÇÃO DE BANCA ATIVA:</strong><br>
+                                • Bot BLOQUEIA novos BUY se não tiver SELL (e vice-versa)<br>
+                                • Bot PARA se prejuízo > $50 (configurável em max_daily_loss)<br>
+                                • Lote reduz automaticamente em prejuízo alto<br>
+                                • SL máximo = 2x TP (risco/recompensa)
+                            </div>
+                        </div>
+                        
+                        <div class="btn-group">
+                            <button class="success" onclick="createBotFromForm()">✓ Criar e Iniciar Bot</button>
+                        </div>
+                    </div>
                     
-                    <div class="btn-group">
-                        <button class="secondary" onclick="validateConfig()">Validate</button>
-                        <button class="success" onclick="createBot()">Create & Start</button>
+                    <!-- TAB: JSON -->
+                    <div id="tab-json" class="tab-content">
+                        <div class="btn-group">
+                            <button class="secondary" onclick="loadTemplate('btc')">BTC Template</button>
+                            <button class="secondary" onclick="loadTemplate('xau')">XAU Template</button>
+                            <button class="secondary" onclick="clearConfig()">Clear</button>
+                        </div>
+                        
+                        <textarea id="botConfig" placeholder='{"symbol":"BTCUSDc","timeframe":"M1","lot_size":0.01,"take_profit":5000,"stop_loss":10000,"confidence_threshold":0.65,"max_positions":1}'></textarea>
+                        
+                        <div class="btn-group">
+                            <button class="secondary" onclick="validateConfig()">Validate</button>
+                            <button class="success" onclick="createBot()">Create & Start</button>
+                        </div>
                     </div>
                     
                     <div id="configStatus" class="config-status"></div>
@@ -419,7 +631,7 @@
                     telegram_chat_id: ""
                 },
                 advanced: {
-                    magic_number: 123456,
+                    magic_number: Math.floor(100000 + Math.random() * 900000),
                     comment: "MLP Bot BTC",
                     deviation: 10,
                     fill_type: "FOK",
@@ -484,7 +696,7 @@
                     telegram_chat_id: ""
                 },
                 advanced: {
-                    magic_number: 123457,
+                    magic_number: Math.floor(100000 + Math.random() * 900000),
                     comment: "MLP Bot XAU",
                     deviation: 10,
                     fill_type: "FOK",
@@ -495,6 +707,160 @@
                 }
             }
         };
+        
+        function switchTab(tab) {
+            // Atualizar tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'form') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('tab-form').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('tab-json').classList.add('active');
+            }
+        }
+        
+        function loadFormTemplate(type) {
+            const template = templates[type];
+            
+            document.getElementById('form_symbol').value = template.symbol;
+            document.getElementById('form_timeframe').value = template.timeframe;
+            document.getElementById('form_lot_size').value = template.lot_size;
+            document.getElementById('form_take_profit').value = template.take_profit;
+            document.getElementById('form_stop_loss').value = template.stop_loss;
+            document.getElementById('form_max_positions').value = template.max_positions;
+            document.getElementById('form_use_indicators').checked = template.analysis_method?.use_indicators !== false;
+            document.getElementById('form_use_mlp').checked = template.analysis_method?.use_mlp || false;
+            document.getElementById('form_auto_execute').checked = template.trading?.auto_execute || false;
+            document.getElementById('form_max_daily_trades').value = template.trading?.max_daily_trades || 10;
+            document.getElementById('form_trade_cooldown').value = template.trading?.trade_cooldown || 20;
+            document.getElementById('form_min_confidence').value = (template.signals?.min_confidence || 0.65) * 100;
+            
+            addLog('info', `Template ${type.toUpperCase()} carregado no formulário`);
+        }
+        
+        function clearForm() {
+            document.getElementById('form_symbol').value = 'BTCUSDc';
+            document.getElementById('form_timeframe').value = 'M1';
+            document.getElementById('form_lot_size').value = '0.01';
+            document.getElementById('form_take_profit').value = '5000';
+            document.getElementById('form_stop_loss').value = '10000';
+            document.getElementById('form_max_positions').value = '1';
+            document.getElementById('form_use_indicators').checked = true;
+            document.getElementById('form_use_mlp').checked = false;
+            document.getElementById('form_auto_execute').checked = false;
+            document.getElementById('form_max_daily_trades').value = '10';
+            document.getElementById('form_trade_cooldown').value = '20';
+            document.getElementById('form_min_confidence').value = '65';
+            addLog('info', 'Formulário limpo');
+        }
+        
+        async function createBotFromForm() {
+            // Coletar dados do formulário
+            const symbol = document.getElementById('form_symbol').value;
+            
+            const config = {
+                symbol: symbol,
+                timeframe: document.getElementById('form_timeframe').value,
+                lot_size: parseFloat(document.getElementById('form_lot_size').value),
+                take_profit: parseInt(document.getElementById('form_take_profit').value),
+                stop_loss: parseInt(document.getElementById('form_stop_loss').value),
+                max_positions: parseInt(document.getElementById('form_max_positions').value),
+                confidence_threshold: 0.70,
+                analysis_method: {
+                    use_indicators: document.getElementById('form_use_indicators').checked,
+                    use_mlp: document.getElementById('form_use_mlp').checked
+                },
+                trading: {
+                    enabled: true,
+                    auto_execute: document.getElementById('form_auto_execute').checked,
+                    max_daily_trades: parseInt(document.getElementById('form_max_daily_trades').value),
+                    trade_cooldown: parseInt(document.getElementById('form_trade_cooldown').value),
+                    max_daily_loss: 100.0,
+                    max_daily_profit: 500.0,
+                    trailing_stop: false,
+                    trailing_stop_distance: 50,
+                    break_even: true,
+                    break_even_trigger: 30,
+                    partial_close: false,
+                    partial_close_percent: 50,
+                    partial_close_profit: 50
+                },
+                risk_management: {
+                    max_risk_per_trade: 1.0,
+                    max_account_risk: 5.0,
+                    use_dynamic_lot: false,
+                    risk_reward_ratio: 2.0,
+                    max_spread: 50,
+                    max_slippage: 10
+                },
+                signals: {
+                    rsi_oversold: 30,
+                    rsi_overbought: 70,
+                    rsi_buy_zone: 40,
+                    rsi_sell_zone: 60,
+                    use_trend_filter: true,
+                    min_confidence: parseFloat(document.getElementById('form_min_confidence').value) / 100,
+                    signals_to_confirm: 1
+                },
+                schedule: {
+                    enabled: false,
+                    start_time: "09:00",
+                    end_time: "18:00",
+                    trading_days: [1, 2, 3, 4, 5],
+                    avoid_news: false
+                },
+                notifications: {
+                    enabled: false,
+                    on_trade_open: true,
+                    on_trade_close: true,
+                    on_error: true,
+                    telegram_bot_token: "",
+                    telegram_chat_id: ""
+                },
+                advanced: {
+                    magic_number: Math.floor(100000 + Math.random() * 900000),
+                    comment: `MLP Bot ${symbol}`,
+                    deviation: 10,
+                    fill_type: "FOK",
+                    order_type: "MARKET",
+                    retry_on_error: true,
+                    max_retries: 3,
+                    retry_delay: 1
+                }
+            };
+            
+            // Validar campos obrigatórios
+            if (!symbol || !config.lot_size || !config.take_profit || !config.stop_loss) {
+                addLog('error', 'Preencha todos os campos obrigatórios');
+                return;
+            }
+            
+            addLog('info', `Criando bot ${symbol}...`);
+            console.log('Config enviado:', config);
+            
+            try {
+                const response = await fetch('/bots/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({config: config})
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `Bot criado: ${result.bot_id}`);
+                    clearForm();
+                    refreshBotsList();
+                } else {
+                    addLog('error', result.error);
+                }
+            } catch (e) {
+                addLog('error', e.message);
+            }
+        }
         
         function loadTemplate(type) {
             document.getElementById('botConfig').value = JSON.stringify(templates[type], null, 2);
@@ -657,20 +1023,100 @@
         }
         
         async function emergencyStopAll() {
-            if (!confirm('EMERGENCY STOP ALL BOTS?\n\nAll positions will be closed immediately.')) return;
+            if (!confirm('⚠️ ATENÇÃO: Isso irá parar TODOS os bots imediatamente!\n\nDeseja continuar?')) {
+                return;
+            }
             
-            addLog('warning', 'EMERGENCY STOP ACTIVATED');
+            addLog('warning', '🚨 Parando todos os bots...');
+            
             try {
-                const response = await fetch('/bots/emergency-stop-all', {method: 'POST'});
+                const response = await fetch('/bots/emergency-stop-all', {
+                    method: 'POST'
+                });
+                
                 const result = await response.json();
+                
                 if (result.success) {
-                    addLog('success', result.message);
+                    addLog('success', `✓ ${result.stopped_count} bots parados`);
                     refreshBotsList();
                 } else {
                     addLog('error', result.error);
                 }
             } catch (e) {
                 addLog('error', e.message);
+            }
+        }
+        
+        async function retrainMLP() {
+            const symbol = prompt('Símbolo para treinar (BTCUSDc, XAUUSDc, etc):', 'BTCUSDc');
+            if (!symbol) return;
+            
+            if (!confirm(`Retreinar modelo MLP para ${symbol}?\n\nIsso pode levar 30-60 segundos.`)) {
+                return;
+            }
+            
+            addLog('info', `🤖 Retreinando MLP para ${symbol}...`);
+            
+            try {
+                const response = await fetch('/bots/retrain-mlp', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        timeframe: 'M1',
+                        num_samples: 500
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ MLP retreinado para ${symbol}!`);
+                } else {
+                    addLog('error', `✗ Erro: ${result.error || result.message}`);
+                }
+            } catch (e) {
+                addLog('error', `Erro ao retreinar: ${e.message}`);
+            }
+        }
+        
+        async function forceHedge() {
+            const symbol = prompt('Símbolo para forçar hedge (XAUUSDc, BTCUSDc, etc):', 'XAUUSDc');
+            if (!symbol) return;
+            
+            const magicNumber = prompt('Magic Number do bot:', '');
+            if (!magicNumber) return;
+            
+            const lotSize = prompt('Tamanho do lote:', '0.01');
+            if (!lotSize) return;
+            
+            if (!confirm(`⚠️ FORÇAR HEDGE DE EMERGÊNCIA\n\nSímbolo: ${symbol}\nMagic: ${magicNumber}\nLote: ${lotSize}\n\nIsso abrirá uma posição oposta imediatamente!\n\nContinuar?`)) {
+                return;
+            }
+            
+            addLog('warning', `⚖️ Forçando hedge para ${symbol}...`);
+            
+            try {
+                const response = await fetch('/hedge/force', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        symbol: symbol,
+                        magic_number: parseInt(magicNumber),
+                        lot_size: parseFloat(lotSize)
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ Hedge ${result.signal} executado! Ticket: ${result.ticket}`);
+                    refreshBotsList();
+                } else {
+                    addLog('error', `✗ Erro: ${result.error || result.message}`);
+                }
+            } catch (e) {
+                addLog('error', `Erro ao forçar hedge: ${e.message}`);
             }
         }
         
@@ -759,8 +1205,12 @@
                                 </div>
                                 
                                 <div id="config-${botId}" class="bot-config-details" style="display: none;">
+                                    <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin-top: 10px; margin-bottom: 10px; border-left: 3px solid #ffc107;">
+                                        <strong style="font-size: 11px;">🔑 Magic Number:</strong> <code style="background: white; padding: 2px 6px; border-radius: 3px;">${config.advanced?.magic_number || 'N/A'}</code>
+                                        <span style="font-size: 10px; color: #666; margin-left: 10px;">(Identifica as ordens deste bot)</span>
+                                    </div>
                                     ${bot.positions && bot.positions.length > 0 ? `
-                                    <div style="background: #e3f2fd; padding: 15px; border-radius: 4px; margin-top: 10px; margin-bottom: 10px;">
+                                    <div style="background: #e3f2fd; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
                                         <strong style="font-size: 13px;">💼 Posições Abertas (${bot.positions.length})</strong>
                                         <div style="margin-top: 10px;">
                                             ${bot.positions.map(pos => `

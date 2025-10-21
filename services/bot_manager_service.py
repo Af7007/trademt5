@@ -27,19 +27,95 @@ class BotInstance:
             logger.warning(f"Bot {bot_id}: Config era string, convertido para dict")
         else:
             self.config = config
+        
+        # Extrair símbolo da config
+        self.symbol = self.config.get('symbol', 'XAUUSDc')
+        self.timeframe = self.config.get('timeframe', 'M1')
+        
         self.trading_engine = trading_engine
-        self.created_at = datetime.now()
         self.is_running = False
-        self.status = {}
+        self.created_at = datetime.now()
         self.analysis_thread = None
         self.stop_analysis = False
-        logger.info(f"Bot {bot_id}: Criado com config type={type(self.config)}")
+        self.last_trade_time = None  # Timestamp do último trade
+        self.consecutive_losses = 0  # Contador de perdas consecutivas
+        self.last_trade_profit = 0  # P&L do último trade
+        
+        # Ler cooldown da config ou usar padrão de 20s
+        self.trade_cooldown = self.config.get('trading', {}).get('trade_cooldown', 20)
+        logger.info(f"Bot {bot_id}: Criado para {self.symbol} {self.timeframe}, cooldown={self.trade_cooldown}s")
         
     def start_analysis_loop(self):
         """Inicia loop de análise em thread separada"""
         if self.analysis_thread and self.analysis_thread.is_alive():
             logger.warning(f"Bot {self.bot_id}: Thread de análise já está rodando")
             return
+        
+        # Verificar se MLP está habilitado e treinar AUTOMATICAMENTE
+        config = self.config
+        if isinstance(config, str):
+            config = json.loads(config)
+        
+        analysis_method = config.get('analysis_method', {})
+        use_mlp = analysis_method.get('use_mlp', True)  # MLP habilitado por padrão
+        
+        if use_mlp:
+            logger.info(f"Bot {self.bot_id}: ========== TREINANDO MLP AUTOMATICAMENTE ==========")
+            logger.info(f"Bot {self.bot_id}: Símbolo: {self.symbol}, Timeframe: {self.timeframe}")
+            
+            try:
+                import MetaTrader5 as mt5
+                from services.mlp_predictor import mlp_predictor
+                
+                # Conectar MT5
+                if not mt5.initialize():
+                    logger.error(f"Bot {self.bot_id}: ❌ Erro ao conectar MT5")
+                else:
+                    # Mapear timeframe
+                    timeframe_map = {
+                        'M1': mt5.TIMEFRAME_M1,
+                        'M5': mt5.TIMEFRAME_M5,
+                        'M15': mt5.TIMEFRAME_M15,
+                        'M30': mt5.TIMEFRAME_M30,
+                        'H1': mt5.TIMEFRAME_H1,
+                        'H4': mt5.TIMEFRAME_H4,
+                        'D1': mt5.TIMEFRAME_D1
+                    }
+                    
+                    mt5_timeframe = timeframe_map.get(self.timeframe, mt5.TIMEFRAME_M1)
+                    
+                    # Obter dados históricos
+                    logger.info(f"Bot {self.bot_id}: Obtendo 500 candles de {self.symbol} {self.timeframe}...")
+                    rates = mt5.copy_rates_from_pos(self.symbol, mt5_timeframe, 0, 500)
+                    
+                    if rates is not None and len(rates) > 0:
+                        import pandas as pd
+                        df = pd.DataFrame(rates)
+                        
+                        # Preparar dados de treinamento
+                        logger.info(f"Bot {self.bot_id}: Preparando dados de treinamento...")
+                        training_data = mlp_predictor._prepare_training_data(df, self.symbol, mt5_timeframe)
+                        
+                        if training_data and len(training_data) > 10:
+                            # Treinar modelo
+                            logger.info(f"Bot {self.bot_id}: Treinando MLP com {len(training_data)} amostras...")
+                            success = mlp_predictor.train(training_data)
+                            
+                            if success:
+                                logger.info(f"Bot {self.bot_id}: ✅ MLP TREINADO COM SUCESSO!")
+                            else:
+                                logger.error(f"Bot {self.bot_id}: ❌ Falha no treinamento do MLP")
+                        else:
+                            logger.error(f"Bot {self.bot_id}: ❌ Dados insuficientes para treinamento")
+                    else:
+                        logger.error(f"Bot {self.bot_id}: ❌ Erro ao obter dados históricos")
+                        
+            except Exception as e:
+                logger.error(f"Bot {self.bot_id}: ❌ Erro ao treinar MLP: {e}")
+                import traceback
+                logger.error(traceback.format_exc())
+        else:
+            logger.info(f"Bot {self.bot_id}: MLP desabilitado - usando indicadores")
         
         self.stop_analysis = False
         self.analysis_thread = threading.Thread(target=self._analysis_loop, daemon=True)
@@ -64,6 +140,14 @@ class BotInstance:
             symbol = config.get('symbol', 'BTCUSDc')
             logger.info(f"Bot {self.bot_id}: Iniciando análise contínua de {symbol}")
             logger.info(f"Bot {self.bot_id}: Thread ID: {threading.current_thread().ident}")
+            
+            # Estatísticas
+            analysis_count = 0
+            buy_signals = 0
+            sell_signals = 0
+            hold_signals = 0
+            trades_executed = 0
+            
         except Exception as e:
             logger.error(f"Bot {self.bot_id}: Erro ao iniciar thread: {e}")
             import traceback
@@ -71,6 +155,7 @@ class BotInstance:
             return
         
         while not self.stop_analysis and self.is_running:
+            analysis_count += 1
             logger.debug(f"Bot {self.bot_id} ({symbol}): Loop de análise rodando...")
             try:
                 logger.info(f"Bot {self.bot_id}: Iniciando análise, config type={type(self.config)}, config={self.config}")
@@ -103,41 +188,64 @@ class BotInstance:
                     sma_20 = sum(close[-20:]) / 20 if len(close) >= 20 else close[-1]
                     sma_50 = sum(close[-50:]) / 50 if len(close) >= 50 else close[-1]
                     
-                    # Determinar sinal baseado em indicadores (lógica melhorada)
+                    # Verificar método de análise configurado
+                    analysis_method = config.get('analysis_method', {})
+                    use_indicators = analysis_method.get('use_indicators', False)  # Desabilitar indicadores
+                    use_mlp = analysis_method.get('use_mlp', True)  # HABILITAR MLP por padrão
+                    
+                    # Determinar sinal baseado no método configurado
                     signal = 'HOLD'
                     confidence = 0.50
                     
                     logger.info(f"Bot {self.bot_id} ({symbol}): RSI={rsi:.1f}, Price={close[-1]:.2f}, SMA20={sma_20:.2f}, SMA50={sma_50:.2f}")
+                    logger.info(f"Bot {self.bot_id}: Método - Indicadores: {use_indicators}, MLP: {use_mlp}")
                     
-                    # Sinais fortes (alta confiança)
-                    if rsi < 30:
-                        signal = 'BUY'
-                        confidence = 0.85
-                        logger.info(f"Bot {self.bot_id}: RSI < 30 → BUY 85%")
-                    elif rsi > 70:
-                        signal = 'SELL'
-                        confidence = 0.85
-                        logger.info(f"Bot {self.bot_id}: RSI > 70 → SELL 85%")
-                    # Sinais médios baseados em RSI
-                    elif rsi < 40:
-                        signal = 'BUY'
-                        confidence = 0.70
-                        logger.info(f"Bot {self.bot_id}: RSI < 40 → BUY 70%")
-                    elif rsi > 60:
-                        signal = 'SELL'
-                        confidence = 0.70
-                        logger.info(f"Bot {self.bot_id}: RSI > 60 → SELL 70%")
-                    # Sinais de tendência
-                    elif close[-1] > sma_20 > sma_50 and rsi > 50:
-                        signal = 'BUY'
-                        confidence = 0.65
-                        logger.info(f"Bot {self.bot_id}: Tendência Alta + RSI > 50 → BUY 65%")
-                    elif close[-1] < sma_20 < sma_50 and rsi < 50:
-                        signal = 'SELL'
-                        confidence = 0.65
-                        logger.info(f"Bot {self.bot_id}: Tendência Baixa + RSI < 50 → SELL 65%")
-                    else:
-                        logger.info(f"Bot {self.bot_id}: Nenhuma condição atendida → HOLD 50%")
+                    # Usar indicadores técnicos
+                    if use_indicators:
+                        # Sinais fortes (alta confiança)
+                        if rsi < 30:
+                            signal = 'BUY'
+                            confidence = 0.85
+                            logger.info(f"Bot {self.bot_id}: RSI < 30 → BUY 85%")
+                        elif rsi > 70:
+                            signal = 'SELL'
+                            confidence = 0.85
+                            logger.info(f"Bot {self.bot_id}: RSI > 70 → SELL 85%")
+                        # Sinais médios baseados em RSI
+                        elif rsi < 40:
+                            signal = 'BUY'
+                            confidence = 0.70
+                            logger.info(f"Bot {self.bot_id}: RSI < 40 → BUY 70%")
+                        elif rsi > 60:
+                            signal = 'SELL'
+                            confidence = 0.70
+                            logger.info(f"Bot {self.bot_id}: RSI > 60 → SELL 70%")
+                        # Sinais de tendência
+                        elif close[-1] > sma_20 > sma_50 and rsi > 50:
+                            signal = 'BUY'
+                            confidence = 0.65
+                            logger.info(f"Bot {self.bot_id}: Tendência Alta + RSI > 50 → BUY 65%")
+                        elif close[-1] < sma_20 < sma_50 and rsi < 50:
+                            signal = 'SELL'
+                            confidence = 0.65
+                            logger.info(f"Bot {self.bot_id}: Tendência Baixa + RSI < 50 → SELL 65%")
+                        else:
+                            logger.info(f"Bot {self.bot_id}: Nenhuma condição atendida → HOLD 50%")
+                    
+                    # Usar modelo MLP
+                    elif use_mlp:
+                        from services.mlp_predictor import mlp_predictor
+                        
+                        logger.info(f"Bot {self.bot_id}: ========== USANDO MLP PARA PREDIÇÃO ==========")
+                        
+                        try:
+                            signal, confidence = mlp_predictor.predict(df)
+                            logger.info(f"Bot {self.bot_id}: ✓ MLP → {signal} ({confidence*100:.1f}%)")
+                        except Exception as e:
+                            logger.error(f"Bot {self.bot_id}: ❌ ERRO NO MLP: {e}")
+                            logger.error(f"Bot {self.bot_id}: 💡 Treine o MLP clicando 'Retreinar MLP'")
+                            signal = 'HOLD'
+                            confidence = 0.50
                     
                     # Determinar trend
                     if sma_20 > sma_50:
@@ -200,7 +308,16 @@ class BotInstance:
                     }
                     add_analysis_to_cache(self.bot_id, cache_data)
                     
+                    # Contar sinais
+                    if signal == 'BUY':
+                        buy_signals += 1
+                    elif signal == 'SELL':
+                        sell_signals += 1
+                    else:
+                        hold_signals += 1
+                    
                     logger.info(f"Bot {self.bot_id} ({symbol}): Análise salva - {signal} ({confidence*100:.1f}%)")
+                    logger.info(f"Bot {self.bot_id}: Estatísticas - Análises: {analysis_count}, BUY: {buy_signals}, SELL: {sell_signals}, HOLD: {hold_signals}")
                     
                     # Executar trade se auto_execute estiver habilitado
                     logger.info(f"Bot {self.bot_id}: ========== VERIFICANDO TRADING AUTOMÁTICO ==========")
@@ -208,15 +325,94 @@ class BotInstance:
                     logger.info(f"Bot {self.bot_id}: config.trading = {config.get('trading', {})}")
                     logger.info(f"Bot {self.bot_id}: auto_execute={auto_execute}, signal={signal}, confidence={confidence:.2f}")
                     
+                    # DIAGNÓSTICO COMPLETO
+                    if not auto_execute:
+                        logger.error(f"Bot {self.bot_id}: ❌ AUTO_EXECUTE DESABILITADO!")
+                        logger.error(f"Bot {self.bot_id}: ❌ Configure 'trading.auto_execute': true na config")
+                        logger.error(f"Bot {self.bot_id}: ❌ Config atual: {config.get('trading', {})}")
+                    else:
+                        logger.info(f"Bot {self.bot_id}: ✓ Auto execute HABILITADO")
+                    
+                    if signal == 'HOLD':
+                        logger.warning(f"Bot {self.bot_id}: ⚠️ Sinal é HOLD - não vai executar")
+                    else:
+                        logger.info(f"Bot {self.bot_id}: ✓ Sinal válido: {signal}")
+                    
                     if auto_execute:
+                        # VERIFICAR HEDGE ANTES DE EXECUTAR
+                        magic_number = config.get('advanced', {}).get('magic_number', 123456)
+                        all_positions = mt5.positions_get(symbol=symbol)
+                        my_positions = [p for p in all_positions if p.magic == magic_number] if all_positions else []
+                        buy_count = sum(1 for p in my_positions if p.type == 0)
+                        sell_count = sum(1 for p in my_positions if p.type == 1)
+                        
+                        # ESTRATÉGIA HÍBRIDA: MLP decide QUANDO, Bot garante HEDGE
+                        original_signal = signal
+                        original_confidence = confidence
+                        
+                        # Se desbalanceado, PRIORIZAR hedge mas respeitar oportunidade MLP
+                        if buy_count > 0 and sell_count == 0:
+                            logger.warning(f"Bot {self.bot_id}: ⚠️ Desbalanceado: {buy_count} BUY sem SELL")
+                            
+                            # Se MLP deu sinal SELL, usar ele (oportunidade + hedge)
+                            if original_signal == 'SELL':
+                                logger.info(f"Bot {self.bot_id}: ✓ MLP identificou oportunidade SELL - Perfeito para hedge!")
+                            # Se MLP deu BUY, FORÇAR SELL para hedge
+                            elif original_signal == 'BUY':
+                                logger.error(f"Bot {self.bot_id}: 🚨 MLP quer BUY mas precisa SELL para hedge!")
+                                logger.error(f"Bot {self.bot_id}: 🔄 FORÇANDO SELL para proteger banca")
+                                signal = 'SELL'
+                                confidence = 0.80  # Alta confiança para hedge de proteção
+                            # Se MLP deu HOLD, FORÇAR SELL para hedge
+                            else:
+                                logger.error(f"Bot {self.bot_id}: 🚨 MLP em HOLD mas precisa SELL para hedge!")
+                                logger.error(f"Bot {self.bot_id}: 🔄 FORÇANDO SELL para proteger banca")
+                                signal = 'SELL'
+                                confidence = 0.75  # Confiança média para hedge forçado
+                        
+                        elif sell_count > 0 and buy_count == 0:
+                            logger.warning(f"Bot {self.bot_id}: ⚠️ Desbalanceado: {sell_count} SELL sem BUY")
+                            
+                            # Se MLP deu sinal BUY, usar ele (oportunidade + hedge)
+                            if original_signal == 'BUY':
+                                logger.info(f"Bot {self.bot_id}: ✓ MLP identificou oportunidade BUY - Perfeito para hedge!")
+                            # Se MLP deu SELL, FORÇAR BUY para hedge
+                            elif original_signal == 'SELL':
+                                logger.error(f"Bot {self.bot_id}: 🚨 MLP quer SELL mas precisa BUY para hedge!")
+                                logger.error(f"Bot {self.bot_id}: 🔄 FORÇANDO BUY para proteger banca")
+                                signal = 'BUY'
+                                confidence = 0.80  # Alta confiança para hedge de proteção
+                            # Se MLP deu HOLD, FORÇAR BUY para hedge
+                            else:
+                                logger.error(f"Bot {self.bot_id}: 🚨 MLP em HOLD mas precisa BUY para hedge!")
+                                logger.error(f"Bot {self.bot_id}: 🔄 FORÇANDO BUY para proteger banca")
+                                signal = 'BUY'
+                                confidence = 0.75  # Confiança média para hedge forçado
+                        
+                        # Se balanceado, seguir MLP normalmente
+                        else:
+                            logger.info(f"Bot {self.bot_id}: ✓ Posições balanceadas - Seguindo decisão MLP: {signal}")
+                        
+                        logger.info(f"Bot {self.bot_id}: MLP original: {original_signal} ({original_confidence*100:.1f}%) → Executando: {signal} ({confidence*100:.1f}%)")
                         logger.info(f"Bot {self.bot_id}: Chamando _execute_trade_if_needed...")
                         current_price = float(close[-1])
-                        self._execute_trade_if_needed(symbol, signal, confidence, current_price, config)
+                        trade_executed = self._execute_trade_if_needed(symbol, signal, confidence, current_price, config)
+                        if trade_executed:
+                            trades_executed += 1
+                            logger.info(f"Bot {self.bot_id}: ✓ Trade #{trades_executed} executado!")
                     else:
                         logger.info(f"Bot {self.bot_id}: Trading automático desabilitado")
+                    
+                    # GERENCIAMENTO DE HEDGE: Verificar se deve fechar posição perdedora
+                    if auto_execute:
+                        try:
+                            from services.hedge_manager import hedge_manager
+                            hedge_manager.check_and_close_losing_position(symbol, magic_number)
+                        except Exception as e:
+                            logger.error(f"Bot {self.bot_id}: Erro no hedge manager: {e}")
                 
-                # Aguardar 10 segundos antes da próxima análise
-                time.sleep(10)
+                # Aguardar 5 segundos antes da próxima análise
+                time.sleep(5)
                 
             except Exception as e:
                 logger.error(f"Bot {self.bot_id}: Erro na análise - {e}")
@@ -227,33 +423,203 @@ class BotInstance:
         
         logger.info(f"Bot {self.bot_id}: Loop de análise encerrado")
     
-    def _execute_trade_if_needed(self, symbol: str, signal: str, confidence: float, price: float, config: dict):
-        """Executa trade automaticamente se condições forem atendidas"""
+    def _execute_trade_if_needed(self, symbol, signal, confidence, current_price, config):
+        """Executa trade se condições forem atendidas"""
         try:
+            logger.info(f"Bot {self.bot_id}: ========== INICIANDO _execute_trade_if_needed ==========")
+            logger.info(f"Bot {self.bot_id}: Parâmetros: symbol={symbol}, signal={signal}, confidence={confidence:.2f}, price={current_price}")
             import MetaTrader5 as mt5
             
-            # Verificar se confiança é suficiente
-            min_confidence = config.get('signals', {}).get('min_confidence', 0.65)
-            if confidence < min_confidence:
-                logger.info(f"Bot {self.bot_id}: Confiança {confidence:.2f} < {min_confidence:.2f}, trade ignorado")
-                return
+            logger.info(f"Bot {self.bot_id}: ========== VERIFICANDO CONDIÇÕES PARA TRADE ==========")
+            logger.info(f"Bot {self.bot_id}: Sinal: {signal}, Confiança: {confidence*100:.1f}%")
+            
+            # Verificar cooldown - mas permitir hedge (posição oposta)
+            if self.last_trade_time:
+                time_since_last = (datetime.now() - self.last_trade_time).total_seconds()
+                
+                # Se for sinal oposto ao último trade, permitir (hedge)
+                # Verificar qual foi o último tipo de trade
+                magic_number = config.get('advanced', {}).get('magic_number', 123456)
+                all_positions = mt5.positions_get(symbol=symbol)
+                my_positions = [p for p in all_positions if p.magic == magic_number] if all_positions else []
+                
+                # Se não tem posições, aplicar cooldown normal
+                if not my_positions:
+                    if time_since_last < self.trade_cooldown:
+                        remaining = self.trade_cooldown - time_since_last
+                        logger.info(f"Bot {self.bot_id}: ⏳ Cooldown ativo - aguarde {remaining:.0f}s")
+                        return False
+                else:
+                    # Tem posições - verificar se é hedge
+                    has_buy = any(p.type == 0 for p in my_positions)
+                    has_sell = any(p.type == 1 for p in my_positions)
+                    
+                    # Se quer abrir BUY mas já tem BUY, aplicar cooldown
+                    if signal == 'BUY' and has_buy:
+                        if time_since_last < self.trade_cooldown:
+                            remaining = self.trade_cooldown - time_since_last
+                            logger.info(f"Bot {self.bot_id}: ⏳ Cooldown BUY ativo - aguarde {remaining:.0f}s")
+                            return False
+                    
+                    # Se quer abrir SELL mas já tem SELL, aplicar cooldown
+                    if signal == 'SELL' and has_sell:
+                        if time_since_last < self.trade_cooldown:
+                            remaining = self.trade_cooldown - time_since_last
+                            logger.info(f"Bot {self.bot_id}: ⏳ Cooldown SELL ativo - aguarde {remaining:.0f}s")
+                            return False
+                    
+                    # Se é hedge (posição oposta), permitir imediatamente
+                    if (signal == 'BUY' and not has_buy) or (signal == 'SELL' and not has_sell):
+                        logger.info(f"Bot {self.bot_id}: ✓ Hedge detectado - permitindo {signal} imediatamente")
+                
+                logger.info(f"Bot {self.bot_id}: ✓ Cooldown OK ({time_since_last:.0f}s desde último trade)")
             
             # Verificar se sinal é BUY ou SELL
             if signal == 'HOLD':
-                return
+                logger.info(f"Bot {self.bot_id}: ✗ Sinal é HOLD - aguardando oportunidade")
+                return False
             
-            # Verificar se já tem posição aberta
-            positions = mt5.positions_get(symbol=symbol)
+            # FILTRO DE QUALIDADE: Confiança ALTA para evitar perdas
+            min_confidence = config.get('signals', {}).get('min_confidence', 0.75)  # 75% padrão
+            
+            # PROTEÇÃO: Se teve perdas consecutivas, PARAR
+            if self.consecutive_losses >= 3:
+                logger.error(f"Bot {self.bot_id}: 🚨 3 PERDAS CONSECUTIVAS! Bot pausado por segurança")
+                logger.error(f"Bot {self.bot_id}: 🛑 Reinicie o bot manualmente após análise")
+                return False
+            
+            # Se teve perdas consecutivas, AUMENTAR confiança
+            if self.consecutive_losses > 0:
+                min_confidence = min_confidence + (self.consecutive_losses * 0.05)  # +5% por perda
+                logger.warning(f"Bot {self.bot_id}: ⚠️ {self.consecutive_losses} perdas consecutivas - Confiança aumentada para {min_confidence*100:.0f}%")
+            
+            # Se está em prejuízo, AUMENTAR confiança mínima
+            if total_profit < 0:
+                min_confidence = max(min_confidence, 0.75)  # Mínimo 75% em prejuízo
+                logger.warning(f"Bot {self.bot_id}: ⚠️ Em prejuízo - Confiança mínima aumentada para {min_confidence*100:.0f}%")
+            
+            logger.info(f"Bot {self.bot_id}: Confiança mínima: {min_confidence*100:.1f}%")
+            
+            if confidence < min_confidence:
+                logger.warning(f"Bot {self.bot_id}: ✗ Confiança insuficiente: {confidence*100:.1f}% < {min_confidence*100:.1f}%")
+                logger.warning(f"Bot {self.bot_id}: 💡 Aguardando sinal de maior qualidade")
+                return False
+            
+            logger.info(f"Bot {self.bot_id}: ✓ Confiança OK: {confidence*100:.1f}% >= {min_confidence*100:.1f}%")
+            
+            # Verificar posições abertas
+            magic_number = config.get('advanced', {}).get('magic_number', 123456)
+            all_positions = mt5.positions_get(symbol=symbol)
+            
+            # Filtrar posições deste bot
+            my_positions = [p for p in all_positions if p.magic == magic_number] if all_positions else []
+            
+            # Contar posições por tipo
+            buy_positions = [p for p in my_positions if p.type == 0]  # 0 = BUY
+            sell_positions = [p for p in my_positions if p.type == 1]  # 1 = SELL
+            
+            logger.info(f"Bot {self.bot_id}: Posições abertas - BUY: {len(buy_positions)}, SELL: {len(sell_positions)}")
+            
+            # PROTEÇÃO DE BANCA: Verificar prejuízo total
+            total_profit = sum(p.profit for p in my_positions)
+            max_loss = config.get('trading', {}).get('max_daily_loss', 100.0)
+            
+            if total_profit < -max_loss:
+                logger.error(f"Bot {self.bot_id}: 🚨 PREJUÍZO CRÍTICO! ${total_profit:.2f} < -${max_loss:.2f}")
+                logger.error(f"Bot {self.bot_id}: 🛑 BOT BLOQUEADO - Feche posições manualmente!")
+                return False
+            
+            # HEDGE FORÇADO - CAMADA DE SEGURANÇA DUPLA
             max_positions = config.get('max_positions', 1)
             
-            if positions and len(positions) >= max_positions:
-                logger.info(f"Bot {self.bot_id}: Já tem {len(positions)} posições abertas (max: {max_positions})")
-                return
+            # FORÇAR HEDGE se desbalanceado (proteção redundante)
+            if len(buy_positions) > 0 and len(sell_positions) == 0:
+                if signal != 'SELL':
+                    logger.error(f"Bot {self.bot_id}: 🚨 CAMADA DE SEGURANÇA! {len(buy_positions)} BUY sem SELL")
+                    logger.error(f"Bot {self.bot_id}: 🔄 FORÇANDO SELL para hedge (P&L: ${total_profit:.2f})")
+                    signal = 'SELL'
+                    confidence = 0.85
+                else:
+                    logger.info(f"Bot {self.bot_id}: ✓ SELL para hedge de {len(buy_positions)} BUY")
             
-            # Preparar ordem
+            elif len(sell_positions) > 0 and len(buy_positions) == 0:
+                if signal != 'BUY':
+                    logger.error(f"Bot {self.bot_id}: 🚨 CAMADA DE SEGURANÇA! {len(sell_positions)} SELL sem BUY")
+                    logger.error(f"Bot {self.bot_id}: 🔄 FORÇANDO BUY para hedge (P&L: ${total_profit:.2f})")
+                    signal = 'BUY'
+                    confidence = 0.85
+                else:
+                    logger.info(f"Bot {self.bot_id}: ✓ BUY para hedge de {len(sell_positions)} SELL")
+            
+            # Verificar limites por tipo
+            if signal == 'BUY' and len(buy_positions) >= max_positions:
+                logger.info(f"Bot {self.bot_id}: ✗ Já tem {len(buy_positions)} BUY (max: {max_positions})")
+                return False
+            
+            if signal == 'SELL' and len(sell_positions) >= max_positions:
+                logger.info(f"Bot {self.bot_id}: ✗ Já tem {len(sell_positions)} SELL (max: {max_positions})")
+                return False
+            
+            # Log status
+            if len(buy_positions) > 0 and len(sell_positions) > 0:
+                logger.info(f"Bot {self.bot_id}: ✓ Hedge ativo | BUY: {len(buy_positions)}, SELL: {len(sell_positions)} | P&L: ${total_profit:.2f}")
+            elif len(my_positions) == 0:
+                logger.info(f"Bot {self.bot_id}: ✓ Primeira posição - permitindo {signal}")
+            
+            logger.info(f"Bot {self.bot_id}: ✓ Executando {signal} | BUY: {len(buy_positions)}/{max_positions}, SELL: {len(sell_positions)}/{max_positions} | P&L: ${total_profit:.2f}")
+            
+            # Preparar ordem com gestão de risco CONSERVADORA
             lot_size = config.get('lot_size', 0.01)
             take_profit_pips = config.get('take_profit', 5000)
             stop_loss_pips = config.get('stop_loss', 10000)
+            
+            # ESTRATÉGIA CONSERVADORA: TP pequeno, SL apertado
+            # Objetivo: Lucro contínuo pequeno, evitar grandes perdas
+            
+            # REDUZIR TP para lucro rápido (scalping)
+            take_profit_pips = min(take_profit_pips, 300)  # Máximo 300 pips ($3)
+            
+            # REDUZIR SL para limitar perdas
+            stop_loss_pips = min(stop_loss_pips, 600)  # Máximo 600 pips ($6)
+            
+            logger.info(f"Bot {self.bot_id}: 💰 MODO CONSERVADOR - TP={take_profit_pips}, SL={stop_loss_pips}")
+            
+            # AJUSTE INTELIGENTE DE STOPS PARA HEDGE
+            # Se está em hedge, usar stops assimétricos para proteger lucro
+            if len(buy_positions) > 0 and len(sell_positions) > 0:
+                logger.info(f"Bot {self.bot_id}: 🔄 HEDGE ATIVO - TP muito pequeno para lucro rápido")
+                
+                # TP MUITO pequeno para garantir lucro rápido
+                take_profit_pips = int(take_profit_pips * 0.4)  # 40% = ~120 pips ($1.20)
+                
+                # SL maior para dar espaço ao mercado (evitar stop em ambos)
+                stop_loss_pips = int(stop_loss_pips * 1.5)  # 150% = ~900 pips ($9)
+                
+                logger.info(f"Bot {self.bot_id}: TP hedge: {take_profit_pips} | SL hedge: {stop_loss_pips}")
+            
+            # Se é primeira posição, usar TP pequeno
+            elif len(my_positions) == 0:
+                logger.info(f"Bot {self.bot_id}: 📊 Primeira posição - TP pequeno: {take_profit_pips}")
+            
+            # Se está desbalanceado (abrindo hedge), usar TP MUITO agressivo
+            else:
+                logger.info(f"Bot {self.bot_id}: ⚡ Abrindo HEDGE - TP MUITO agressivo")
+                take_profit_pips = int(take_profit_pips * 0.3)  # 30% = ~90 pips ($0.90)
+                stop_loss_pips = int(stop_loss_pips * 2.0)  # 200% = ~1200 pips ($12)
+                logger.info(f"Bot {self.bot_id}: TP hedge: {take_profit_pips} | SL hedge: {stop_loss_pips}")
+            
+            # PROTEÇÃO: SL nunca maior que TP * 3 (em hedge precisa de mais espaço)
+            max_sl = take_profit_pips * 3
+            if stop_loss_pips > max_sl:
+                logger.warning(f"Bot {self.bot_id}: ⚠️ SL muito grande! Ajustando de {stop_loss_pips} para {max_sl}")
+                stop_loss_pips = max_sl
+            
+            # PROTEÇÃO: Reduzir lote se prejuízo alto
+            if total_profit < -50:
+                original_lot = lot_size
+                lot_size = max(0.01, lot_size * 0.5)  # Reduz pela metade
+                logger.warning(f"Bot {self.bot_id}: ⚠️ Prejuízo alto! Reduzindo lote de {original_lot} para {lot_size}")
+            
             magic_number = config.get('advanced', {}).get('magic_number', 123456)
             deviation = config.get('advanced', {}).get('deviation', 10)
             
@@ -294,14 +660,22 @@ class BotInstance:
             if result.retcode == mt5.TRADE_RETCODE_DONE:
                 logger.info(f"Bot {self.bot_id}: ✓ Ordem executada! Ticket: {result.order}")
                 logger.info(f"  Volume: {result.volume}, Preço: {result.price:.2f}")
+                
+                # Atualizar timestamp do último trade
+                self.last_trade_time = datetime.now()
+                logger.info(f"Bot {self.bot_id}: ⏳ Cooldown de {self.trade_cooldown}s ativado")
+                
+                return True
             else:
                 logger.error(f"Bot {self.bot_id}: ✗ Falha ao executar ordem: {result.comment}")
                 logger.error(f"  Retcode: {result.retcode}")
+                return False
                 
         except Exception as e:
             logger.error(f"Bot {self.bot_id}: Erro ao executar trade - {e}")
             import traceback
             logger.error(traceback.format_exc())
+            return False
     
     def get_status(self) -> Dict:
         """Obtém status do bot"""
@@ -329,8 +703,8 @@ class BotInstance:
                 
                 if mt5_positions:
                     for pos in mt5_positions:
-                        # Filtrar por magic number (comentário contém bot_id)
-                        if pos.magic == magic_number or self.bot_id[:8] in pos.comment:
+                        # Filtrar APENAS por magic number (cada bot tem um magic único)
+                        if pos.magic == magic_number:
                             positions_count += 1
                             total_profit += pos.profit
                             
@@ -351,6 +725,8 @@ class BotInstance:
             
             return {
                 'bot_id': self.bot_id,
+                'symbol': self.symbol,
+                'timeframe': self.timeframe,
                 'config': config_dict,
                 'is_running': self.is_running,
                 'created_at': self.created_at.isoformat(),

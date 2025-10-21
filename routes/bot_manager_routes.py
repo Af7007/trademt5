@@ -59,14 +59,20 @@ def create_bot():
     Cria um novo bot
     """
     try:
-        config = request.get_json()
+        data = request.get_json()
         
-        if not config:
+        if not data:
             return jsonify({
                 'success': False,
                 'error': 'Configuração obrigatória',
                 'timestamp': datetime.now().isoformat()
             }), 400
+        
+        # Aceitar tanto {config: {...}} quanto {...} diretamente
+        if 'config' in data:
+            config = data['config']
+        else:
+            config = data
         
         # Validar campos obrigatórios
         required_fields = ['symbol']
@@ -289,6 +295,52 @@ def close_position(bot_id, ticket):
         return jsonify({
             'success': False,
             'error': str(e)
+        }), 500
+
+
+@bot_manager_bp.route('/bots/retrain-mlp', methods=['POST'])
+def retrain_mlp():
+    """
+    Retreina o modelo MLP
+    """
+    try:
+        data = request.get_json() or {}
+        symbol = data.get('symbol', 'BTCUSDc')
+        timeframe = data.get('timeframe', 'M1')
+        num_samples = data.get('num_samples', 500)
+        
+        from services.mlp_predictor import mlp_predictor
+        
+        logger.info(f"Retreinando MLP: {symbol} {timeframe} ({num_samples} amostras)")
+        
+        # Retreinar em thread para não bloquear
+        import threading
+        
+        result = {'success': False, 'message': ''}
+        
+        def train():
+            success = mlp_predictor.auto_train_from_mt5(symbol, timeframe, num_samples)
+            result['success'] = success
+            result['message'] = 'Modelo retreinado com sucesso!' if success else 'Falha ao retreinar modelo'
+        
+        train_thread = threading.Thread(target=train)
+        train_thread.start()
+        train_thread.join(timeout=60)  # Aguardar até 60 segundos
+        
+        return jsonify({
+            'success': result['success'],
+            'message': result['message'],
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Erro ao retreinar MLP: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
         }), 500
 
 
