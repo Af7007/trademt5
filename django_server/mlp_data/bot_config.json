@@ -1,9 +1,0 @@
-{
-  "is_running": true,
-  "confidence_threshold": 0.85,
-  "take_profit": 0.5,
-  "operation_interval": 60,
-  "last_operation_time": "2025-10-19T18:02:20.295992",
-  "auto_trading_enabled": true,
-  "symbol": "BTCUSDc"
-}
