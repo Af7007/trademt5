@@ -206,9 +206,9 @@ class ConservativeScalpStrategy:
         if gap <= 20:
             total_score += 1
 
-        # 5. Bollinger Position
-        if last['BB_position'] <= 0.25:  # Threshold ajustado
-            bb_pos_score = max(0, (0.25 - last['BB_position']) * 4.0)
+        # 5. Bollinger Position - MUITO AGRESSIVO
+        if last['BB_position'] <= 0.1:  # Threshold ultra-agressivo: 10%
+            bb_pos_score = max(0, (0.1 - last['BB_position']) * 10.0)
         elif last['BB_position'] >= 0.8:
             bb_pos_score = max(0, (last['BB_position'] - 0.8) * 3.33)
         else:
@@ -256,8 +256,8 @@ class ConservativeScalpStrategy:
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        # Setup BUY
-        if last['BB_position'] <= 0.25:
+        # Setup BUY - ULTRA AGRESSIVO
+        if last['BB_position'] <= 0.1:  # Threshold ultra-reduzido para 10%
             if (prev['close'] < prev['open'] and
                 last['close'] > last['open'] and
                 last['low'] <= last['BB_lower'] + 1):

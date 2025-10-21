@@ -77,11 +77,13 @@ class ConservativeScalpStrategy:
         self.account_balance = 0.0
         self.account_margin = 0.0
 
-        # Horários Forex XAU (London + NYC)
+        # Horários Expandidos XAU - Quase 24/7
         self.allowed_hours = [
             (8, 0, 11, 30),   # London open
-            (13, 30, 16, 0),  # NYC session
+            (12, 0, 16, 0),   # Extended London/NYC
             (17, 0, 21, 0),   # Extended trading
+            (22, 0, 1, 0),    # Asya early morning
+            (2, 0, 6, 0),     # Asya late morning
         ]
 
         # Logging XAU
@@ -260,8 +262,8 @@ class ConservativeScalpStrategy:
         if not (self.rsi_neutral_low <= last['RSI'] <= self.rsi_neutral_high):
             return False, "XAU RSI não neutro: {:.1f}".format(last['RSI'])
 
-        # Volume adequado (não muito baixo)
-        if last['volume_ratio'] < 0.8:
+        # Volume adequado (mais permissivo - 0.6)
+        if last['volume_ratio'] < 0.6:
             return False, "XAU Volume baixo: {:.2f}".format(last['volume_ratio'])
 
         # Sem gaps grandes
@@ -277,8 +279,8 @@ class ConservativeScalpStrategy:
         last = df.iloc[-1]
         prev = df.iloc[-2]
 
-        # Setup BUY: Preço colado na banda inferior + candle de força
-        if last['BB_position'] <= 0.3:  # Próximo da banda inferior (teste 30%)
+        # Setup BUY: Preço colado na banda inferior + candle de força - MAIS AGRESSIVO
+        if last['BB_position'] <= 0.2:  # Maiss_reviews agress تستivo (20%)
             # Confirmação: Alça rosa após candle azul em baixa
             if (prev['close'] < prev['open'] and  # Candle anterior negativo
                 last['close'] > last['open'] and   # Candle atual positivo

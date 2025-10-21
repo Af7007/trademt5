@@ -42,17 +42,15 @@ def main():
     print("=" * 80)
     print("MULTI-SYMBOL TRADING SYSTEM")
     print("=" * 80)
-    print("Iniciando 3 estratégias simultâneas:")
-    print("• BTCUSDc - Bitcoin 24/7")
-    print("• XAUUSDc - Ouro Forex Hours")
-    print("• GBPUSDc - GBP/USD Forex Hours")
+    print("Iniciando 2 estratégias agressivas simultâneas:")
+    print("• BTCUSDc - Bitcoin 24/7 (Agressivo)")
+    print("• XAUUSDc - Ouro Forex Hours (Agressivo)")
     print("=" * 80)
 
-    # Definição das estratégias
+    # Definição das estratégias - BTC e XAU mais agressivos
     strategies = [
         ('btc_scalp_strategy.py', 'BTC Strategy'),
-        ('xau_scalp_strategy.py', 'XAU Strategy'),
-        ('gbp_scalp_strategy.py', 'GBP Strategy')
+        ('xau_scalp_strategy.py', 'XAU Strategy')
     ]
 
     processes = []
@@ -86,11 +84,9 @@ def main():
         print("ESTRATÉGIAS INICIADAS EM JANELAS SEPARADAS!")
         print("\nJANELA 1: BTC Strategy - Python btc_scalp_strategy.py")
         print("JANELA 2: XAU Strategy - Python xau_scalp_strategy.py")
-        print("JANELA 3: GBP Strategy - Python gbp_scalp_strategy.py")
         print("\nLOGs AUTOMÁTICOS:")
         print("• btc_scalp_strategy_YYYYMMDD_HHMMSS.log")
         print("• xau_scalp_strategy_YYYYMMDD_HHMMSS.log")
-        print("• gbp_scalp_strategy_YYYYMMDD_HHMMSS.log")
         print("\nPARAR INDIVIDUAL: Feche cada janela ou CTRL+C em cada uma")
         print("=" * 80)
 
