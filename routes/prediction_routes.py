@@ -54,7 +54,7 @@ def analyze():
             symbol:
               type: string
               example: "XAUUSDc"
-              description: Símbolo para análise
+              description: "Símbolo para análise (ex: XAUUSDc)"
             target_profit:
               type: number
               example: 30.0

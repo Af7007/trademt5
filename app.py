@@ -76,7 +76,7 @@ app.register_blueprint(hedge_emergency_bp)
 app.register_blueprint(prediction_bp)
 # Removido: apidocs_bp movido para Django (porta 5001)
 
-# Initialize Swagger
+# Initialize Swagger - TESTANDO PARA IDENTIFICAR ERRO
 swagger = Swagger(app)
 
 # Rota para Bot Manager UI (single bot - legado)
