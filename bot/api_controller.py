@@ -1,7 +1,7 @@
 """
 API Controller para controle remoto do bot MLP-MT5
 """
-from flask import Blueprint, request, jsonify
+from flask import Flask, Blueprint, request, jsonify
 import logging
 import json
 from datetime import datetime
@@ -19,7 +19,8 @@ class BotAPIController:
         self.config = get_config()
         self.trading_engine = TradingEngine()
 
-        # Criar blueprint ao invés de aplicativo Flask
+        # Criar aplicativo Flask e blueprint
+        self.flask_app = Flask(__name__)
         self.app = Blueprint('bot_mlp_api', __name__)
 
         # Configurar logging
@@ -27,6 +28,9 @@ class BotAPIController:
 
         # Configurar rotas
         self._setup_routes()
+
+        # Registrar blueprint
+        self.flask_app.register_blueprint(self.app, url_prefix='/api/v1')
 
     def _setup_routes(self):
         """Configura as rotas da API"""
@@ -301,7 +305,7 @@ class BotAPIController:
         port = port or self.config.api_port
 
         self.logger.info(f"Iniciando API do Bot na porta {port}")
-        self.app.run(host=host, port=port, debug=debug)
+        self.flask_app.run(host=host, port=port, debug=debug)
 
     def start_background(self, host: str = '0.0.0.0', port: int = None):
         """Inicia a API em background"""

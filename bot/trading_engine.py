@@ -8,6 +8,8 @@ from typing import Dict, List, Optional, Tuple, Any
 import json
 import threading
 import pandas as pd
+import numpy as np
+import MetaTrader5 as mt5
 
 from .config import get_config
 from .mlp_model import MLPModel
@@ -26,6 +28,20 @@ try:
 except ImportError:
     storage_available = False
 
+def convert_numpy_types(data):
+    if isinstance(data, np.integer):
+        return int(data)
+    elif isinstance(data, np.floating):
+        return float(data)
+    elif isinstance(data, np.bool_):
+        return bool(data)
+    elif isinstance(data, np.ndarray):
+        return data.tolist()
+    elif isinstance(data, dict):
+        return {k: convert_numpy_types(v) for k, v in data.items()}
+    elif isinstance(data, list):
+        return [convert_numpy_types(i) for i in data]
+    return data
 
 class TradingEngine:
     """Motor principal do bot de trading"""
@@ -34,6 +50,7 @@ class TradingEngine:
         self.config = get_config()
         self.mlp_model = MLPModel()
         self.is_running = False
+        self.trade_executed = False
         self.last_prediction = None
         self.performance_metrics = {
             'total_trades': 0,
@@ -100,15 +117,12 @@ class TradingEngine:
     def execute_signal(self, signal: str, confidence: float = 0.5, analysis_id: int = None) -> Dict[str, Any]:
         """Executa operação baseada no sinal do modelo"""
         try:
-            # Import MT5 no início da função para evitar problemas de variável
-            import MetaTrader5 as mt5
-
             if not self.is_running:
                 return {'success': False, 'error': 'Bot não está rodando'}
 
-            if confidence < 0.9:  # Threshold mínimo de confiança aumentado para 90%
+            if confidence < 0.6:  # Threshold reduzido para 60% para ser mais agressivo
                 self.logger.info(f"Confiança baixa ({confidence:.2f}), ignorando sinal: {signal}")
-                return {'success': False, 'error': 'Confiança baixa - precisa 90%'}
+                return {'success': False, 'error': 'Confiança baixa'}
 
             # Aguardar/fechar posições existentes usando mt5_connection
             # SOMENTE 1 POSIÇÃO POR VEZ - regra do usuário
@@ -165,26 +179,55 @@ class TradingEngine:
 
             current_price = symbol_data.ask if signal == 'BUY' else symbol_data.bid
 
-            # Calcular SL e TP baseado na configuração
-            point = symbol_data.point
+            # Configurações específicas do teste
+            account_info = mt5_connection.get_account_info()
+            if account_info is None:
+                return {'success': False, 'error': 'Não foi possível obter informações da conta'}
 
-            # TAKE PROFIT DEFINIDO COMO 1% DO PREÇO DE ENTRADA
-            tp_percentage = 0.01  # 1% take profit
-            tp = current_price * (1 + tp_percentage) if signal.upper() == 'BUY' else current_price * (1 - tp_percentage)
+            balance = account_info.get('balance', 0)
 
-            # STOP LOSS mínimo (5% distante)
-            sl_percentage = 0.05  # 5% stop loss mínimo
+            # Usar configurações específicas do teste
+            target_profit_usd = self.config.trading.target_profit_usd  # $0.50
+            risk_percentage = self.config.trading.risk_percentage  # 1% do saldo
+            risk_per_trade = balance * risk_percentage
+
+            contract_size = symbol_data.trade_contract_size
+            tick_size = symbol_data.point
+            tick_value = symbol_data.trade_tick_value
+
+            # Usar lote fixo
+            volume = self.config.trading.lot_size
+            
+            # Garantir volume mínimo
+            if volume < symbol_data.volume_min:
+                volume = symbol_data.volume_min
+
+            # Calcular SL/TP de forma simples e direta
+            # Para BTCUSDc: 1 ponto = 0.01, tick_value = 0.01
+            # Para $0.50 com 0.01 lote: 5000 pontos = 50.0 em preço
+            # Para XAUUSDc: 1 ponto = 0.001, tick_value = 0.1
+            # Para $0.50 com 0.01 lote: 500 pontos = 0.5 em preço
+            
+            # Detectar símbolo e ajustar valores
+            if self.config.trading.symbol == "BTCUSDc":
+                tp_distance = 50.0  # 5000 pontos em preço para BTC
+                sl_distance = 100.0  # 10000 pontos em preço para BTC
+            else:  # XAUUSDc ou outros
+                tp_distance = 0.5  # 500 pontos em preço
+                sl_distance = 1.0  # 1000 pontos em preço
+
             if signal.upper() == 'BUY':
-                sl = current_price - (current_price * sl_percentage)
-            else:  # SELL
-                sl = current_price + (current_price * sl_percentage)
+                tp = current_price + tp_distance
+                sl = current_price - sl_distance
+            else: #SELL
+                tp = current_price - tp_distance
+                sl = current_price + sl_distance
 
             # Arredondar para dígitos do símbolo
             sl = round(sl, symbol_data.digits)
             tp = round(tp, symbol_data.digits)
-
-            sl = round(sl, symbol_data.digits)
-            tp = round(tp, symbol_data.digits)
+            
+            self.logger.info(f"Valores calculados: Price={current_price}, SL={sl}, TP={tp}, Volume={volume}")
 
             # Enviar ordem usando MT5 diretamente
             order_type = mt5.ORDER_TYPE_BUY if signal.upper() == 'BUY' else mt5.ORDER_TYPE_SELL
@@ -192,7 +235,7 @@ class TradingEngine:
             request = {
                 "action": mt5.TRADE_ACTION_DEAL,
                 "symbol": self.config.trading.symbol,
-                "volume": self.config.trading.lot_size,
+                "volume": volume,
                 "type": order_type,
                 "magic": self.config.trading.magic_number,
                 "comment": "MLP Bot Order"
@@ -214,6 +257,7 @@ class TradingEngine:
             ticket = result.order
 
             if ticket:
+                self.trade_executed = True
                 # Save trade to database if available
                 if storage_available:
                     try:
@@ -264,9 +308,6 @@ class TradingEngine:
         try:
             if not self.is_running:
                 return {'success': False, 'error': 'Bot não está rodando'}
-
-            # Obter dados de mercado usando MT5 diretamente
-            import MetaTrader5 as mt5
 
             # Converter timeframe para MT5
             tf_dict = {
@@ -339,6 +380,7 @@ class TradingEngine:
             # Save analysis to database if available
             if storage_available:
                 try:
+                    analysis_data = convert_numpy_types(analysis_data)
                     analysis_id = mlp_storage.add_analysis(analysis_data)
                     self.logger.info(f"Análise salva no banco - ID: {analysis_id}")
                 except Exception as e:
@@ -364,8 +406,6 @@ class TradingEngine:
     def get_status(self) -> Dict[str, Any]:
         """Obtém status atual do bot"""
         try:
-            # Obter posições usando MT5 diretamente
-            import MetaTrader5 as mt5
             positions_mt5 = mt5.positions_get()
 
             positions = []
@@ -402,9 +442,6 @@ class TradingEngine:
         """Treina o modelo com dados históricos"""
         try:
             self.logger.info(f"Iniciando treinamento com {days} dias de dados...")
-
-            # Coletar dados de diferentes timeframes usando MT5 diretamente
-            import MetaTrader5 as mt5
 
             all_data = []
             tf_dict = {
@@ -460,14 +497,77 @@ class TradingEngine:
     def _monitor_loop(self):
         """Loop principal de monitoramento"""
         self.logger.info("Iniciando loop de monitoramento...")
+        self.logger.info(f"Modo de operação única: {self.config.trading.single_operation_mode}")
+        self.logger.info(f"Aguardar fechamento da posição: {self.config.trading.wait_for_position_close}")
+
+        last_analysis_time = 0
+        analysis_interval = 60  # 1 minuto entre análises
 
         while not self.stop_monitoring.is_set():
             try:
-                # Análise e trading a cada minuto
-                self.analyze_and_trade()
+                current_time = time.time()
+
+                # Modo de operação única - só executa se não tiver trade ainda
+                if self.config.trading.single_operation_mode and self.trade_executed:
+                    # Aguardar fechamento da posição se habilitado
+                    if self.config.trading.wait_for_position_close:
+                        positions = mt5.positions_get(magic=self.config.trading.magic_number)
+                        if positions is None or len(positions) == 0:
+                            self.logger.info("Posição fechada - operação única concluída, encerrando o bot.")
+                            # Salvar evento no banco
+                            if storage_available:
+                                try:
+                                    mlp_storage.add_bot_event(
+                                        'OPERATION_COMPLETED',
+                                        'Operação única concluída - posição fechada',
+                                        {'mode': 'single_operation', 'wait_for_close': True}
+                                    )
+                                except Exception as e:
+                                    self.logger.error(f"Erro ao salvar evento: {e}")
+
+                            self.stop()
+                            break
+                        else:
+                            self.logger.info(f"Aguardando fechamento da posição... (Ticket: {positions[0].ticket})")
+                            time.sleep(30)  # Verificar a cada 30 segundos
+                            continue
+                    else:
+                        # Não aguardar fechamento - encerrar imediatamente após executar
+                        self.logger.info("Operação única executada - encerrando o bot.")
+                        self.stop()
+                        break
+
+                # Executar análise apenas no intervalo correto
+                if current_time - last_analysis_time >= analysis_interval:
+                    if not self.trade_executed:
+                        result = self.analyze_and_trade()
+                        if result.get('success') and result.get('ticket'):
+                            self.trade_executed = True
+                            self.logger.info(f"Trade executado (Ticket: {result.get('ticket')}) - operação única iniciada")
+                            last_analysis_time = current_time
+
+                            # Salvar evento no banco
+                            if storage_available:
+                                try:
+                                    mlp_storage.add_bot_event(
+                                        'TRADE_EXECUTED',
+                                        f"Operação única executada - Ticket: {result.get('ticket')}",
+                                        {
+                                            'ticket': result.get('ticket'),
+                                            'signal': result.get('signal'),
+                                            'price': result.get('price'),
+                                            'sl': result.get('sl'),
+                                            'tp': result.get('tp'),
+                                            'mode': 'single_operation'
+                                        }
+                                    )
+                                except Exception as e:
+                                    self.logger.error(f"Erro ao salvar evento: {e}")
+                    else:
+                        last_analysis_time = current_time
 
                 # Aguardar próximo ciclo
-                time.sleep(60)  # 1 minuto
+                time.sleep(10)  # Verificação mais frequente para operações únicas
 
             except Exception as e:
                 self.logger.error(f"Erro no loop de monitoramento: {str(e)}")
@@ -478,8 +578,6 @@ class TradingEngine:
     def emergency_close_all(self) -> Dict[str, Any]:
         """Fecha todas as posições em caso de emergência"""
         try:
-            import MetaTrader5 as mt5
-
             # Obter posições do bot (com magic number específico)
             positions_mt5 = mt5.positions_get()
 
@@ -517,8 +615,6 @@ class TradingEngine:
     def get_performance_report(self) -> Dict[str, Any]:
         """Gera relatório de performance"""
         try:
-            import MetaTrader5 as mt5
-
             # Obter posições do bot usando MT5 diretamente
             positions_mt5 = mt5.positions_get()
 
@@ -540,10 +636,10 @@ class TradingEngine:
 
             # Calcular métricas
             total_positions = len(positions)
-            total_profit = sum(pos['profit'] for pos in positions)
+            total_profit = sum(p['profit'] for p in positions)
 
             # Win rate
-            winning_positions = len([pos for pos in positions if pos['profit'] > 0])
+            winning_positions = len([p for p in positions if p['profit'] > 0])
             win_rate = (winning_positions / total_positions * 100) if total_positions > 0 else 0
 
             # Drawdown (simplificado)
@@ -562,12 +658,12 @@ class TradingEngine:
                 },
                 'positions': [
                     {
-                        'ticket': pos['ticket'],
-                        'type': pos['type'],
-                        'profit': round(pos['profit'], 2),
-                        'volume': pos['volume'],
-                        'open_time': pos['open_time'].isoformat()
-                    } for pos in positions
+                        'ticket': p['ticket'],
+                        'type': p['type'],
+                        'profit': round(p['profit'], 2),
+                        'volume': p['volume'],
+                        'open_time': p['open_time'].isoformat()
+                    } for p in positions
                 ],
                 'account': account_info,
                 'bot_metrics': self.performance_metrics
@@ -576,6 +672,69 @@ class TradingEngine:
         except Exception as e:
             self.logger.error(f"Erro ao gerar relatório: {str(e)}")
             return {'error': str(e)}
+
+    def close_single_position(self, ticket: int) -> Dict[str, Any]:
+        """Fecha uma única posição pelo seu ticket."""
+        try:
+            self.logger.info(f"Attempting to close position {ticket}")
+
+            # Garante que a conexão MT5 está ativa
+            mt5_connection.ensure_connection()
+
+            # Obter a posição específica
+            positions = mt5.positions_get(ticket=ticket)
+            self.logger.info(f"mt5.positions_get(ticket={ticket}) returned: {positions}")
+
+            if not positions:
+                self.logger.error(f"Position with ticket {ticket} not found.")
+                return {'success': False, 'error': f'Position with ticket {ticket} not found'}
+
+            pos = positions[0]
+            self.logger.info(f"Found position: {pos}")
+
+            # Determina o tipo de ordem de fechamento
+            close_type = mt5.ORDER_TYPE_SELL if pos.type == mt5.POSITION_TYPE_BUY else mt5.ORDER_TYPE_BUY
+            
+            # Obter informações do símbolo para o preço de fechamento
+            symbol_info = mt5.symbol_info(pos.symbol)
+            if not symbol_info:
+                self.logger.error(f"Could not get symbol info for {pos.symbol}")
+                return {'success': False, 'error': f'Could not get symbol info for {pos.symbol}'}
+
+            # Preço de fechamento
+            price = symbol_info.bid if close_type == mt5.ORDER_TYPE_SELL else symbol_info.ask
+
+            request = {
+                "action": mt5.TRADE_ACTION_DEAL,
+                "position": pos.ticket,
+                "symbol": pos.symbol,
+                "volume": pos.volume,
+                "type": close_type,
+                "price": price,
+                "magic": self.config.trading.magic_number,
+                "comment": f"Manual close of position {ticket}"
+            }
+            self.logger.info(f"Sending close order request: {request}")
+
+            result = mt5.order_send(request)
+            self.logger.info(f"Order send result: {result}")
+
+            if result and result.retcode == mt5.TRADE_RETCODE_DONE:
+                self.logger.info(f"Position {ticket} closed successfully.")
+                return {'success': True, 'message': f'Position {ticket} closed.'}
+            else:
+                error_message = result.comment if result else "mt5.order_send returned None"
+                self.logger.error(f"Failed to close position {ticket}: {error_message} (retcode: {result.retcode if result else 'N/A'})")
+                return {'success': False, 'error': f'Failed to close position {ticket}: {error_message}'}
+
+        except MT5ConnectionError as e:
+            self.logger.error(f"MT5 connection error while closing position {ticket}: {e}")
+            return {'success': False, 'error': f"MT5 connection error: {e}"}
+        except Exception as e:
+            self.logger.error(f"Error closing single position {ticket}: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return {'success': False, 'error': str(e)}
 
     # Métodos auxiliares para cálculos técnicos
     def _calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:

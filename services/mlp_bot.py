@@ -162,7 +162,7 @@ class MLPTradingBot:
         config = json_storage.get_bot_config()
 
         # Verificar confiança mínima
-        min_confidence = config.get('confidence_threshold', 0.85)
+        min_confidence = config.get('confidence_threshold', 0.60)  # Reduzido para 60% para ser mais agressivo
         current_confidence = analysis_result.get('confidence', 0)
 
         if current_confidence < min_confidence:

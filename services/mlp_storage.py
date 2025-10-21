@@ -136,6 +136,20 @@ class MT5TradeHistory(Base):
     )
 
 
+class MLPBotEvent(Base):
+    """Tabela para registrar eventos do ciclo de vida do bot"""
+    __tablename__ = "mlp_bot_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String, index=True)  # START, STOP, TRADE_OPEN, TRADE_CLOSE, ERROR
+    timestamp = Column(DateTime, default=datetime.utcnow)
+    message = Column(String)
+    details = Column(Text, nullable=True)  # JSON com detalhes como ticket, profit, etc.
+
+    __table_args__ = (
+        {'sqlite_autoincrement': True},
+    )
+
 class MLPStorage:
     """Classe de storage persistente usando SQLite"""
 
@@ -146,7 +160,7 @@ class MLPStorage:
         # Configurações do bot
         self.bot_config = {
             "take_profit": 0.5,
-            "confidence_threshold": 0.85,
+            "confidence_threshold": 0.60,  # Reduzido para 60% para ser mais agressivo
             "auto_trading_enabled": False,
             "symbol": "BTCUSDc"
         }
@@ -223,30 +237,46 @@ class MLPStorage:
         db = self.get_db()
         try:
             import json
+            
+            # Parsear JSON strings se necessário
+            indicators = analysis.get('indicators', {})
+            if isinstance(indicators, str):
+                indicators = json.loads(indicators)
+            
+            market_data = analysis.get('market_data', {})
+            if isinstance(market_data, str):
+                market_data = json.loads(market_data)
+            
+            market_conditions = analysis.get('market_conditions', {})
+            if isinstance(market_conditions, str):
+                market_conditions_json = market_conditions
+            else:
+                market_conditions_json = json.dumps(market_conditions) if market_conditions else None
+            
             analysis_obj = MLPAnalysis(
                 symbol=analysis['symbol'],
                 timeframe=analysis.get('timeframe', 'M1'),
                 signal=analysis['signal'],
                 confidence=analysis['confidence'],
-                timestamp=datetime.fromisoformat(analysis.get('timestamp', datetime.utcnow().isoformat())),
+                timestamp=datetime.fromisoformat(analysis.get('timestamp', datetime.now().isoformat())),
 
                 # Indicadores
-                rsi=analysis.get('indicators', {}).get('rsi'),
-                macd_signal=analysis.get('indicators', {}).get('macd_signal'),
-                bb_upper=analysis.get('indicators', {}).get('bb_upper'),
-                bb_lower=analysis.get('indicators', {}).get('bb_lower'),
-                sma_20=analysis.get('indicators', {}).get('sma_20'),
-                sma_50=analysis.get('indicators', {}).get('sma_50'),
+                rsi=indicators.get('rsi'),
+                macd_signal=indicators.get('macd_signal'),
+                bb_upper=indicators.get('bb_upper'),
+                bb_lower=indicators.get('bb_lower'),
+                sma_20=indicators.get('sma_20'),
+                sma_50=indicators.get('sma_50'),
 
                 # Dados OHLCV
-                price_open=analysis.get('market_data', {}).get('open'),
-                price_high=analysis.get('market_data', {}).get('high'),
-                price_low=analysis.get('market_data', {}).get('low'),
-                price_close=analysis.get('market_data', {}).get('close'),
-                volume=analysis.get('market_data', {}).get('volume'),
+                price_open=market_data.get('open'),
+                price_high=market_data.get('high'),
+                price_low=market_data.get('low'),
+                price_close=market_data.get('close'),
+                volume=market_data.get('volume'),
 
                 # Dados JSON
-                market_conditions=json.dumps(analysis.get('market_conditions')) if analysis.get('market_conditions') else None,
+                market_conditions=market_conditions_json,
                 technical_signals=json.dumps(analysis.get('technical_signals')) if analysis.get('technical_signals') else None,
             )
 
@@ -360,35 +390,69 @@ class MLPStorage:
     def get_daily_stats(self, days: int = 30) -> List[Dict]:
         """Obtém estatísticas diárias MLP"""
         db = self.get_db()
+        daily_stats = {}
         try:
             cutoff_date = datetime.utcnow() - timedelta(days=days)
 
-            stats = db.query(MLPDailyStats).filter(
-                MLPDailyStats.date >= cutoff_date.strftime('%Y-%m-%d')
-            ).order_by(MLPDailyStats.date.desc()).all()
+            # 1. Obter análises e agrupar por dia
+            analyses = db.query(MLPAnalysis).filter(MLPAnalysis.timestamp >= cutoff_date).all()
+            for analysis in analyses:
+                date_str = analysis.timestamp.strftime('%Y-%m-%d')
+                if date_str not in daily_stats:
+                    daily_stats[date_str] = self._get_default_daily_stat(date_str)
+                
+                daily_stats[date_str]['total_analyses'] += 1
+                if analysis.signal == 'BUY':
+                    daily_stats[date_str]['buy_signals'] += 1
+                elif analysis.signal == 'SELL':
+                    daily_stats[date_str]['sell_signals'] += 1
+                else:
+                    daily_stats[date_str]['hold_signals'] += 1
 
-            result = []
-            for stat in stats:
-                stat_dict = {
-                    'id': stat.id,
-                    'date': stat.date,
-                    'total_analyses': stat.total_analyses,
-                    'buy_signals': stat.buy_signals,
-                    'sell_signals': stat.sell_signals,
-                    'hold_signals': stat.hold_signals,
-                    'total_trades': stat.total_trades,
-                    'winning_trades': stat.winning_trades,
-                    'losing_trades': stat.losing_trades,
-                    'total_profit': stat.total_profit,
-                    'win_rate': float(stat.win_rate) if stat.win_rate else None,
-                    'avg_profit': float(stat.avg_profit) if stat.avg_profit else None,
-                }
-                result.append(stat_dict)
+            # 2. Obter trades e agrupar por dia
+            trades = db.query(MLPTrade).filter(MLPTrade.created_at >= cutoff_date).all()
+            for trade in trades:
+                date_str = trade.created_at.strftime('%Y-%m-%d')
+                if date_str not in daily_stats:
+                    daily_stats[date_str] = self._get_default_daily_stat(date_str)
 
-            return result
+                daily_stats[date_str]['total_trades'] += 1
+                if trade.profit is not None:
+                    daily_stats[date_str]['total_profit'] += trade.profit
+                    if trade.profit > 0:
+                        daily_stats[date_str]['winning_trades'] += 1
+                    elif trade.profit < 0:
+                        daily_stats[date_str]['losing_trades'] += 1
+
+            # 3. Calcular métricas finais (win_rate, avg_profit)
+            result_list = sorted(daily_stats.values(), key=lambda x: x['date'], reverse=True)
+            for stats in result_list:
+                closed_trades = stats['winning_trades'] + stats['losing_trades']
+                if closed_trades > 0:
+                    stats['win_rate'] = round((stats['winning_trades'] / closed_trades) * 100, 2)
+                if stats['total_trades'] > 0:
+                    stats['avg_profit'] = round(stats['total_profit'] / stats['total_trades'], 2)
+
+            return result_list
 
         finally:
             db.close()
+
+    def _get_default_daily_stat(self, date_str: str) -> Dict:
+        """Retorna a estrutura padrão para uma estatística diária."""
+        return {
+            'date': date_str,
+            'total_analyses': 0,
+            'buy_signals': 0,
+            'sell_signals': 0,
+            'hold_signals': 0,
+            'total_trades': 0,
+            'winning_trades': 0,
+            'losing_trades': 0,
+            'total_profit': 0.0,
+            'win_rate': 0.0,
+            'avg_profit': 0.0
+        }
 
     def add_daily_stats(self, stats: Dict) -> int:
         """Adiciona estatísticas diárias"""
@@ -414,6 +478,28 @@ class MLPStorage:
                 db.refresh(stats_obj)
                 return stats_obj.id
 
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+
+    def add_bot_event(self, event_type: str, message: str, details: Optional[Dict] = None) -> int:
+        """Adiciona um evento do ciclo de vida do bot."""
+        db = self.get_db()
+        try:
+            import json
+            details_json = json.dumps(details, default=str) if details else None
+
+            event_obj = MLPBotEvent(
+                event_type=event_type,
+                message=message,
+                details=details_json
+            )
+            db.add(event_obj)
+            db.commit()
+            db.refresh(event_obj)
+            return event_obj.id
         except Exception as e:
             db.rollback()
             raise e

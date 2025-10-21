@@ -11,8 +11,8 @@ from datetime import datetime
 
 # URLs das APIs
 FLASK_URL = "http://localhost:5000"
-MLP_START = f"{FLASK_URL}/mlp/start"
-MLP_STOP = f"{FLASK_URL}/mlp/stop"
+MLP_START = f"{FLASK_URL}/mlp/start" # ou /bot/start
+MLP_STOP = f"{FLASK_URL}/mlp/stop"   # ou /bot/stop
 MLP_STATUS = f"{FLASK_URL}/mlp/status"
 MLP_ANALYZE = f"{FLASK_URL}/mlp/analyze"
 MLP_EXECUTE = f"{FLASK_URL}/mlp/execute"
@@ -130,14 +130,14 @@ def check_for_trades():
         if response.status_code == 200:
             data = response.json()
             trades = data.get('trades', [])
-            log(f"Verificado: {len(trades)} trades encontrados")
+            log(f"Verificado: {len(trades)} trades encontrados no banco de dados.")
 
             # Retorna último trade
             return trades[0] if trades else None
         else:
-            log(f"⚠️  Trades API retornou {response.status_code} - pode ser normal se Django não estiver ativo")
+            log(f"⚠️  API de Trades retornou status {response.status_code}")
     except Exception as e:
-        log(f"⚠️  Erro ao verificar trades (provavelmente Django não ativo): {e}")
+        log(f"⚠️  Erro ao verificar trades: {e}")
     return None
 
 def wait_for_trade_execution(timeout=300):
@@ -148,7 +148,7 @@ def wait_for_trade_execution(timeout=300):
     while time.time() - start_time < timeout:
         trade = check_for_trades()
         if trade:
-            log("🎯 Trade executado!")
+            log("🎯 Trade encontrado no banco de dados!")
             log(f"   Ticket: {trade['ticket']}")
             log(f"   Sinal: {trade['type']}")
             log(f"   Preço Entrada: ${trade['entry_price']:.2f}")
@@ -181,7 +181,7 @@ def wait_for_trade_closure(ticket, timeout=300):
                         profit = trade.get('profit')
 
                         if exit_time and profit is not None:
-                            log("💰 Trade fechado!")
+                            log("💰 Trade fechado no banco de dados!")
                             log(f"   Profit: ${profit:.2f}")
                             log(f"   Close Reason: {trade.get('exit_reason', 'UNKNOWN')}")
                             log(f"   Exit Price: ${trade.get('exit_price', 0):.2f}")
@@ -200,15 +200,18 @@ def stop_bot():
 
     try:
         response = requests.post(MLP_STOP)
-        if response.status_code == 200:
-            result = response.json()
-            if result.get('success'):
-                log("✅ Bot MLP parado com sucesso!")
-                return True
-            else:
-                log(f"❌ Erro ao parar bot: {result.get('error', 'Desconhecido')}")
+        result = response.json()
+        
+        if response.status_code == 200 and result.get('success'):
+            log("✅ Bot MLP parado com sucesso!")
+            return True
+        elif response.status_code == 409:
+            # 409 Conflict significa que o bot se recusou a parar (posições abertas)
+            log(f"⚠️  Bot não pode ser parado: {result.get('error', 'Motivo desconhecido')}")
+            log("   Isso é esperado se o trade ainda estiver aberto. Tentando fechar manualmente...")
+            return False # Indica que precisa de intervenção
         else:
-            log(f"❌ HTTP Error {response.status_code}")
+            log(f"❌ Erro ao parar bot: {result.get('error', 'Desconhecido')} (HTTP {response.status_code})")
     except Exception as e:
         log(f"❌ Erro de conexão: {e}")
 
@@ -293,7 +296,10 @@ def main():
     print()
 
     # Passo 5: Parar bot
-    stop_bot()
+    if not stop_bot():
+        log("AVISO: Bot não parou, provavelmente devido a posições abertas. Feche-as manualmente no MT5.")
+        log("       Execute `python -m bot.api_controller --emergency-close` para forçar o fechamento.")
+
     print()
 
     # Resumo final

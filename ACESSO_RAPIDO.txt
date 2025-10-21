@@ -1,0 +1,110 @@
+================================================================================
+  BOT MANAGER - ACESSO RÁPIDO
+================================================================================
+
+✅ SERVIDOR RODANDO!
+
+URL PRINCIPAL:
+http://localhost:5000/bot-manager
+
+COMO ACESSAR:
+1. Abra seu navegador (Chrome, Firefox, Edge)
+2. Digite: http://localhost:5000/bot-manager
+3. Pressione ENTER
+
+OU USE O SCRIPT:
+python abrir_bot_manager.py
+
+================================================================================
+  GUIA RÁPIDO DE USO
+================================================================================
+
+PASSO 1 - CONFIGURAR BOT:
+  → Clique em "Template BTC" ou "Template XAU"
+  → O JSON será preenchido automaticamente
+
+PASSO 2 - VALIDAR (OPCIONAL):
+  → Clique em "Validar JSON"
+  → Confirme que aparece "✓ JSON válido"
+
+PASSO 3 - INICIAR:
+  → Clique em "INICIAR BOT" (botão verde)
+  → Aguarde mensagem de sucesso
+
+PASSO 4 - MONITORAR:
+  → O bot aparecerá na lista "BOTS ATIVOS"
+  → Atualização automática a cada 2 segundos
+  → Veja: trades, profit, win rate, posições
+
+PASSO 5 - PARAR:
+  → Clique em "⬛ PARAR BOT" na linha do bot
+  → Ou "🚨 EMERGÊNCIA" para parada imediata
+
+================================================================================
+  TEMPLATES DISPONÍVEIS
+================================================================================
+
+BITCOIN (BTCUSDc):
+  - Mercado 24/7
+  - TP: 5000 pontos (~$0.50)
+  - SL: 10000 pontos (~$1.00)
+  - Recomendado para: Operações rápidas
+
+OURO (XAUUSDc):
+  - Mercado fecha fim de semana
+  - TP: 500 pontos (~$0.50)
+  - SL: 1000 pontos (~$1.00)
+  - Recomendado para: Operações estáveis
+
+================================================================================
+  TROUBLESHOOTING
+================================================================================
+
+PROBLEMA: Página não carrega
+SOLUÇÃO: Reinicie o servidor
+  → .\start_final.cmd
+
+PROBLEMA: Bot não inicia
+SOLUÇÃO: 
+  1. Valide o JSON
+  2. Verifique MT5 conectado
+  3. Veja logs do sistema
+
+PROBLEMA: Dados não atualizam
+SOLUÇÃO:
+  1. Recarregue página (F5)
+  2. Verifique console (F12)
+
+================================================================================
+  ATALHOS ÚTEIS
+================================================================================
+
+ABRIR BOT MANAGER:
+python abrir_bot_manager.py
+
+REINICIAR SERVIDOR:
+.\start_final.cmd
+
+TESTAR SISTEMA:
+python test_bot_manager.py
+
+VER CONFIGURAÇÕES:
+python create_symbols_config_table.py
+
+================================================================================
+  SUPORTE
+================================================================================
+
+DOCUMENTAÇÃO COMPLETA:
+- README_BOT_MANAGER.md
+- INSTRUCOES_BOT_MANAGER.md
+- RESUMO_SESSAO.md
+
+ENDPOINTS API:
+- http://localhost:5000/mlp/health
+- http://localhost:5000/mlp/status
+- http://localhost:5000/apidocs/
+
+================================================================================
+  SISTEMA PRONTO! BOA SORTE! 🚀
+================================================================================

@@ -299,15 +299,7 @@ class MT5TradeSyncService:
 
     def _check_mt5_connection(self) -> bool:
         """Verifica se MT5 está conectado"""
-        if not mt5.initialize():
-            return False
-
-        # Test with a simple symbol info call
-        try:
-            symbol_info = mt5.symbol_info("EURUSD")
-            return symbol_info is not None
-        except:
-            return False
+        return mt5_connection.is_connected()
 
     def _get_next_sync_seconds(self) -> Optional[int]:
         """Calcula segundos até próxima sincronização"""

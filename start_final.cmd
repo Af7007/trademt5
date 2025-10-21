@@ -7,13 +7,9 @@ echo ==================================================
 echo     SISTEMA MLP TRADING - PLATAFORMA UNICA
 echo ==================================================
 
-:: Limpeza completa do sistema
+:: Limpeza seletiva do sistema
 echo [1/2] Limpando sistema...
-echo        Parando processos Python...
-taskkill /im python.exe /t /f >nul 2>&1
-taskkill /im python3.exe /t /f >nul 2>&1
-
-echo        Fechando janelas CMD antigas...
+echo        Fechando apenas servidor Flask antigo...
 taskkill /fi "WINDOWTITLE eq MT5 PLATFORM*" /f >nul 2>&1
 timeout /t 2 >nul
 

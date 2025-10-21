@@ -10,6 +10,10 @@ import requests
 from .mlp_storage import json_storage
 import logging
 
+# Import do conector MT5 e MetaTrader5
+from core.mt5_connection import mt5_connection
+import MetaTrader5 as mt5
+
 logger = logging.getLogger(__name__)
 
 class MLPTradingBot:
@@ -180,133 +184,81 @@ class MLPTradingBot:
 
     def _execute_trade(self, analysis_result):
         """Executa trade REAL via MetaTrader5"""
-        try:
-            import MetaTrader5 as mt5
+        config = json_storage.get_bot_config()
+        take_profit = config.get('take_profit', 0.50)
+        signal = analysis_result['signal']
+        confidence = analysis_result['confidence']
 
-            config = json_storage.get_bot_config()
-            take_profit = config.get('take_profit', 0.50)
-            signal = analysis_result['signal']
-            confidence = analysis_result['confidence']
+        # Usa o gerenciador de contexto do conector central
+        with mt5_connection.connection_context() as conn:
+            if not conn:
+                logger.error("MT5 não conectado. Não é possível executar o trade.")
+                return False
 
-            # Primeiro tenta conectar com MT5
             try:
-                # Tenta inicializar MT5 com timeout e diagnóstico
-                logger.info("Tentando conectar ao MT5...")
-                if not mt5.initialize():
-                    error_code, error_msg = mt5.last_error()
-                    logger.error(f"MT5 não conectado - Error {error_code}: {error_msg}")
-                    logger.error("Certifique-se que:")
-                    logger.error("  1. O MetaTrader 5 está instalado")
-                    logger.error("  2. O terminal MT5 está aberto")
-                    logger.error("  3. Não há outra aplicação usando MT5")
+                # Executa trade REAL no MT5
+                symbol = 'BTCUSDc'
+
+                if not mt5.symbol_select(symbol, True):
+                    logger.error(f"Símbolo {symbol} não disponível no MT5")
                     return False
-                logger.info("MT5 conectado com sucesso")
+
+                symbol_info = mt5.symbol_info(symbol)
+                if symbol_info is None:
+                    logger.error("Não foi possível obter informações do símbolo")
+                    return False
+
+                symbol_info_tick = mt5.symbol_info_tick(symbol)
+                if symbol_info_tick is None:
+                    logger.error("Não foi possível obter tick do símbolo")
+                    return False
+
+                min_volume = symbol_info.volume_min if hasattr(symbol_info, 'volume_min') else 0.01
+                volume = max(0.01, min_volume)
+
+                spread = symbol_info_tick.ask - symbol_info_tick.bid
+                if take_profit <= spread:
+                    logger.warning(f"Take profit ({take_profit}) é menor que o spread ({spread:.5f})")
+
+                if signal == 'BUY':
+                    price = symbol_info_tick.ask
+                    sl_price = price - take_profit * 2
+                    tp_price = price + take_profit
+                elif signal == 'SELL':
+                    price = symbol_info_tick.bid
+                    sl_price = price + take_profit * 2
+                    tp_price = price - take_profit
+                else:
+                    logger.error("Sinal inválido para execução")
+                    return False
+
+                request = {
+                    "action": mt5.TRADE_ACTION_DEAL, "symbol": symbol, "volume": volume,
+                    "type": mt5.ORDER_TYPE_BUY if signal == 'BUY' else mt5.ORDER_TYPE_SELL,
+                    "price": price, "sl": sl_price, "tp": tp_price, "deviation": 20,
+                    "magic": 240919, "comment": "MLP AUTO TRADE",
+                    "type_filling": mt5.ORDER_FILLING_FOK,
+                }
+
+                result = mt5.order_send(request)
+
+                if result.retcode == mt5.TRADE_RETCODE_DONE:
+                    ticket = result.order
+                    logger.info(f"TRADE EXECUTADO NO MT5 COM SUCESSO! Ticket: {ticket}")
+                    json_storage.save_trade({
+                        'symbol': symbol, 'type': signal, 'analysis_id': analysis_result['analysis_id'],
+                        'confidence': confidence, 'entry_price': price, 'take_profit': tp_price,
+                        'stop_loss': sl_price, 'volume': volume, 'status': 'EXECUTED_MT5',
+                        'mt5_ticket': ticket, 'executed_at': datetime.now().isoformat()
+                    })
+                    return True
+                else:
+                    logger.error(f"MT5 Trade falhou: {result.retcode} - {result.comment}")
+                    return False
+
             except Exception as e:
-                logger.error(f"Erro ao conectar MT5: {e}")
+                logger.error(f"Erro ao executar trade MT5: {e}")
                 return False
-
-            # Executa trade REAL no MT5
-            symbol = 'BTCUSDc'
-
-            # Verifica se símbolo é válido
-            if not mt5.symbol_select(symbol, True):
-                logger.error(f"Símbolo {symbol} não disponível no MT5")
-                return False
-
-            # Obtém informações atuais
-            symbol_info = mt5.symbol_info(symbol)
-            if symbol_info is None:
-                logger.error("Não foi possível obter informações do símbolo")
-                return False
-
-            # Define volume baseado nas informações do símbolo
-            symbol_info_tick = mt5.symbol_info_tick(symbol)
-            if symbol_info_tick is None:
-                logger.error("Não foi possível obter tick do símbolo")
-                return False
-
-            # Verifica volume mínimo permitido
-            min_volume = symbol_info.volume_min if hasattr(symbol_info, 'volume_min') else 0.01
-            volume = max(0.01, min_volume)  # Usa pelo menos 0.01 ou volume mínimo
-
-            # Validação de spread
-            spread = symbol_info_tick.ask - symbol_info_tick.bid
-            if take_profit <= spread:
-                logger.warning(f"Take profit ({take_profit}) é menor que o spread ({spread:.5f})")
-
-            # Define preço de entrada e TP/SL
-            if signal == 'BUY':
-                price = symbol_info_tick.ask
-                sl_price = price - take_profit * 2  # Stop loss 2x mais largo
-                tp_price = price + take_profit
-            elif signal == 'SELL':
-                price = symbol_info_tick.bid
-                sl_price = price + take_profit * 2
-                tp_price = price - take_profit
-            else:
-                logger.error("Sinal inválido para execução")
-                return False
-
-            # Cria requisição de trade
-            request = {
-                "action": mt5.TRADE_ACTION_DEAL,
-                "symbol": symbol,
-                "volume": volume,
-                "type": mt5.ORDER_TYPE_BUY if signal == 'BUY' else mt5.ORDER_TYPE_SELL,
-                "price": price,
-                "sl": sl_price,
-                "tp": tp_price,
-                "deviation": 20,
-                "magic": 240919,  # Número mágico do sistema MLP
-                "comment": "MLP AUTO TRADE",
-                "type_filling": mt5.ORDER_FILLING_FOK,
-            }
-
-            # Envia trade para MT5
-            result = mt5.order_send(request)
-
-            if result.retcode == mt5.TRADE_RETCODE_DONE:
-                ticket = result.order
-                logger.info("TRADE EXECUTADO NO MT5 COM SUCESSO!")
-                logger.info(f"   Ticket MT5: {ticket}")
-                logger.info(f"   Sinal: {signal}")
-                logger.info(f"   Preço Entrada: ${price:.2f}")
-                logger.info(f"   TP: ${tp_price:.2f}")
-                logger.info(f"   SL: ${sl_price:.2f}")
-                logger.info(f"   Confiança: {confidence:.1%}")
-                logger.info(f"   Volume: {volume} lots")
-
-                # Salva trade no histórico MLP
-                json_storage.save_trade({
-                    'symbol': symbol,
-                    'type': signal,
-                    'analysis_id': analysis_result['analysis_id'],
-                    'confidence': confidence,
-                    'entry_price': price,
-                    'take_profit': tp_price,
-                    'stop_loss': sl_price,
-                    'volume': volume,
-                    'status': 'EXECUTED_MT5',
-                    'mt5_ticket': ticket,
-                    'executed_at': datetime.now().isoformat()
-                })
-
-                return True
-
-            else:
-                logger.error(f"MT5 Trade falhou: {result.retcode}")
-                logger.error(f"Detalhes: {result.comment if hasattr(result, 'comment') else 'N/A'}")
-                logger.error(f"Request: {request}")
-                logger.error("Possíveis causas:")
-                logger.error("- Volume muito pequeno (mínimo 0.01)")
-                logger.error("- Stop Loss/TP fora do spread permitido")
-                logger.error("- Saldo insuficiente")
-                logger.error("- Símbolo não disponível para trading")
-                return False
-
-        except Exception as e:
-            logger.error(f"Erro ao executar trade MT5: {e}")
-            return False
 
     def get_status(self):
         """Retorna status do bot"""

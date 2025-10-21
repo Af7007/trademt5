@@ -1,0 +1,51 @@
+================================================================================
+  INSTRUÇÕES PARA REINICIAR O SERVIDOR FLASK
+================================================================================
+
+O código foi corrigido, mas o servidor Flask precisa ser reiniciado para 
+carregar as mudanças.
+
+PASSOS:
+
+1. Pare o servidor Flask atual (Ctrl+C no terminal onde está rodando)
+
+2. Reinicie o servidor Flask:
+   python app.py
+   
+   OU se estiver usando outro método de inicialização
+
+3. Após reiniciar, execute o teste:
+   python test_btc_m1_rapido.py
+
+================================================================================
+CORREÇÕES REALIZADAS:
+================================================================================
+
+1. ✅ Endpoint /mlp/config agora atualiza TODOS os parâmetros:
+   - symbol (BTCUSDc)
+   - timeframe (M1)
+   - take_profit (5000 pontos)
+   - stop_loss (10000 pontos)
+   - max_positions (1)
+   - confidence_threshold (0.65)
+   - auto_trading_enabled (True)
+
+2. ✅ bot/config.py - Símbolo padrão alterado para BTCUSDc
+
+3. ✅ bot/trading_engine.py - Cálculo de SL/TP corrigido para BTC e XAU
+
+4. ✅ Valores corretos para BTCUSDc:
+   - TP: 50.0 em preço (5000 pontos) = ~$0.50 com 0.01 lote
+   - SL: 100.0 em preço (10000 pontos) = ~$1.00 com 0.01 lote
+
+================================================================================
+PROBLEMA IDENTIFICADO:
+================================================================================
+
+O bot estava configurado para XAUUSDc (ouro - mercado fechado) e o endpoint
+de configuração não estava atualizando o símbolo quando solicitado via API.
+
+Agora com a correção, quando você configurar o bot para BTCUSDc via API,
+ele realmente mudará o símbolo e poderá executar trades no Bitcoin.
+
+================================================================================

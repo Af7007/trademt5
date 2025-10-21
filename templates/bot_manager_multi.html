@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Bot Manager - Multi-Bot System</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            border-bottom: 2px solid #00ff00;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .section {
+            background: #1a1a1a;
+            border: 1px solid #00ff00;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .section h2 {
+            color: #00ff00;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        textarea {
+            width: 100%;
+            min-height: 180px;
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #00cc00;
+        }
+        
+        button.danger {
+            background: #ff0000;
+            color: #fff;
+        }
+        
+        button.danger:hover {
+            background: #cc0000;
+        }
+        
+        button:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        .bot-list {
+            margin-top: 20px;
+        }
+        
+        .bot-item {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        
+        .bot-item.active {
+            border-color: #00ff00;
+            box-shadow: 0 0 10px #00ff00;
+        }
+        
+        .bot-item.inactive {
+            border-color: #666;
+            color: #666;
+        }
+        
+        .bot-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .bot-id {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .bot-status {
+            padding: 5px 10px;
+            border: 1px solid;
+        }
+        
+        .bot-status.running {
+            color: #00ff00;
+            border-color: #00ff00;
+        }
+        
+        .bot-status.stopped {
+            color: #ff0000;
+            border-color: #ff0000;
+        }
+        
+        .bot-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .bot-detail {
+            font-size: 12px;
+        }
+        
+        .bot-detail strong {
+            color: #00ff00;
+        }
+        
+        .bot-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .log {
+            background: #000;
+            border: 1px solid #00ff00;
+            padding: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+        
+        .log-entry {
+            margin: 2px 0;
+        }
+        
+        .error {
+            color: #ff0000;
+        }
+        
+        .success {
+            color: #00ff00;
+        }
+        
+        .warning {
+            color: #ffff00;
+        }
+        
+        .info {
+            color: #00aaff;
+        }
+        
+        .template-buttons {
+            margin: 10px 0;
+        }
+        
+        .refresh-info {
+            text-align: right;
+            font-size: 11px;
+            color: #666;
+            margin-top: 10px;
+        }
+        
+        .stats-bar {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px;
+            background: #000;
+            border: 1px solid #00ff00;
+            margin-bottom: 20px;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #00ff00;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ BOT MANAGER - MULTI-BOT SYSTEM</h1>
+        
+        <!-- Estatísticas -->
+        <div class="stats-bar">
+            <div class="stat-item">
+                <div class="stat-value" id="totalBots">0</div>
+                <div class="stat-label">TOTAL BOTS</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="activeBots">0</div>
+                <div class="stat-label">ATIVOS</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalPositions">0</div>
+                <div class="stat-label">POSIÇÕES</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="totalTrades">0</div>
+                <div class="stat-label">TRADES</div>
+            </div>
+        </div>
+        
+        <!-- Seção de Criação de Bot -->
+        <div class="section">
+            <h2>▶ CRIAR NOVO BOT</h2>
+            
+            <div class="template-buttons">
+                <button onclick="loadTemplate('btc')">Template BTC</button>
+                <button onclick="loadTemplate('xau')">Template XAU</button>
+                <button onclick="clearConfig()">Limpar</button>
+            </div>
+            
+            <textarea id="botConfig" placeholder='Cole a configuração JSON aqui ou use um template...'></textarea>
+            
+            <div style="margin-top: 10px;">
+                <button onclick="validateConfig()">Validar JSON</button>
+                <button onclick="createBot()" style="background: #00ff00;">CRIAR E INICIAR BOT</button>
+            </div>
+            
+            <div id="configStatus" style="margin-top: 10px; font-size: 12px;"></div>
+        </div>
+        
+        <!-- Seção de Bots Ativos -->
+        <div class="section">
+            <h2>▶ BOTS ATIVOS (<span id="botCount">0</span>)</h2>
+            <div style="margin-bottom: 10px;">
+                <button class="danger" onclick="emergencyStopAll()">🚨 PARAR TODOS (EMERGÊNCIA)</button>
+            </div>
+            <div id="botsList"></div>
+            <div class="refresh-info">
+                Auto-refresh a cada 2 segundos | Última atualização: <span id="lastUpdate">-</span>
+            </div>
+        </div>
+        
+        <!-- Seção de Logs -->
+        <div class="section">
+            <h2>▶ LOGS DO SISTEMA</h2>
+            <div id="systemLogs" class="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // Templates de configuração
+        const templates = {
+            btc: {
+                symbol: "BTCUSDc",
+                timeframe: "M1",
+                lot_size: 0.01,
+                take_profit: 5000,
+                stop_loss: 10000,
+                confidence_threshold: 0.65,
+                max_positions: 1,
+                auto_trading_enabled: true
+            },
+            xau: {
+                symbol: "XAUUSDc",
+                timeframe: "M1",
+                lot_size: 0.01,
+                take_profit: 500,
+                stop_loss: 1000,
+                confidence_threshold: 0.65,
+                max_positions: 1,
+                auto_trading_enabled: true
+            }
+        };
+        
+        // Carregar template
+        function loadTemplate(type) {
+            const config = templates[type];
+            document.getElementById('botConfig').value = JSON.stringify(config, null, 2);
+            addLog('info', `Template ${type.toUpperCase()} carregado`);
+        }
+        
+        // Limpar configuração
+        function clearConfig() {
+            document.getElementById('botConfig').value = '';
+            document.getElementById('configStatus').innerHTML = '';
+        }
+        
+        // Validar JSON
+        function validateConfig() {
+            const configText = document.getElementById('botConfig').value;
+            const statusDiv = document.getElementById('configStatus');
+            
+            try {
+                const config = JSON.parse(configText);
+                statusDiv.innerHTML = '<span class="success">✓ JSON válido</span>';
+                addLog('success', 'Configuração validada com sucesso');
+                return true;
+            } catch (e) {
+                statusDiv.innerHTML = `<span class="error">✗ Erro: ${e.message}</span>`;
+                addLog('error', `Erro na validação: ${e.message}`);
+                return false;
+            }
+        }
+        
+        // Criar bot
+        async function createBot() {
+            const configText = document.getElementById('botConfig').value;
+            
+            if (!configText.trim()) {
+                addLog('error', 'Configuração vazia');
+                return;
+            }
+            
+            try {
+                const config = JSON.parse(configText);
+                addLog('info', `Criando bot para ${config.symbol}...`);
+                
+                const response = await fetch('/bots/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ Bot criado! ID: ${result.bot_id}`);
+                    clearConfig();
+                    refreshBotsList();
+                } else {
+                    addLog('error', `Erro: ${result.error}`);
+                }
+                
+            } catch (e) {
+                addLog('error', `Erro: ${e.message}`);
+            }
+        }
+        
+        // Iniciar bot
+        async function startBot(botId) {
+            addLog('info', `Iniciando bot ${botId}...`);
+            
+            try {
+                const response = await fetch(`/bots/${botId}/start`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ Bot ${botId} iniciado`);
+                    refreshBotsList();
+                } else {
+                    addLog('error', `Erro: ${result.error}`);
+                }
+            } catch (e) {
+                addLog('error', `Erro: ${e.message}`);
+            }
+        }
+        
+        // Parar bot
+        async function stopBot(botId) {
+            if (!confirm(`Parar bot ${botId}?\n\nTodas as posições abertas serão fechadas automaticamente.`)) {
+                return;
+            }
+            
+            addLog('warning', `Parando bot ${botId}...`);
+            addLog('info', 'Fechando posições abertas...');
+            
+            try {
+                const response = await fetch(`/bots/${botId}/stop`, {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ Bot ${botId} parado e posições fechadas`);
+                    refreshBotsList();
+                } else {
+                    addLog('error', `Erro: ${result.error}`);
+                }
+            } catch (e) {
+                addLog('error', `Erro: ${e.message}`);
+            }
+        }
+        
+        // Deletar bot
+        async function deleteBot(botId) {
+            if (!confirm(`REMOVER bot ${botId}?\n\nSe houver posições abertas, serão fechadas automaticamente.\nEsta ação não pode ser desfeita!`)) {
+                return;
+            }
+            
+            addLog('warning', `Removendo bot ${botId}...`);
+            addLog('info', 'Fechando posições se houver...');
+            
+            try {
+                const response = await fetch(`/bots/${botId}/delete`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ Bot ${botId} removido`);
+                    refreshBotsList();
+                } else {
+                    addLog('error', `Erro: ${result.error}`);
+                }
+            } catch (e) {
+                addLog('error', `Erro: ${e.message}`);
+            }
+        }
+        
+        // Parada de emergência em todos
+        async function emergencyStopAll() {
+            if (!confirm('PARADA DE EMERGÊNCIA EM TODOS OS BOTS! Confirma?')) {
+                return;
+            }
+            
+            addLog('warning', 'PARADA DE EMERGÊNCIA ACIONADA EM TODOS OS BOTS!');
+            
+            try {
+                const response = await fetch('/bots/emergency-stop-all', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addLog('success', `✓ ${result.message}`);
+                    refreshBotsList();
+                } else {
+                    addLog('error', `Erro: ${result.error}`);
+                }
+            } catch (e) {
+                addLog('error', `Erro: ${e.message}`);
+            }
+        }
+        
+        // Atualizar lista de bots
+        async function refreshBotsList() {
+            try {
+                const response = await fetch('/bots');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    addLog('error', 'Erro ao buscar bots');
+                    return;
+                }
+                
+                const bots = data.bots;
+                const listDiv = document.getElementById('botsList');
+                
+                // Atualizar estatísticas
+                document.getElementById('totalBots').textContent = bots.length;
+                document.getElementById('activeBots').textContent = bots.filter(b => b.is_running).length;
+                document.getElementById('botCount').textContent = bots.length;
+                
+                let totalPositions = 0;
+                let totalTrades = 0;
+                
+                if (bots.length === 0) {
+                    listDiv.innerHTML = '<div style="color: #666; padding: 20px; text-align: center;">Nenhum bot criado</div>';
+                } else {
+                    let html = '';
+                    
+                    bots.forEach(bot => {
+                        const config = bot.config || {};
+                        const perf = bot.performance || {};
+                        
+                        totalPositions += bot.positions_count || 0;
+                        totalTrades += perf.total_trades || 0;
+                        
+                        html += `
+                            <div class="bot-item ${bot.is_running ? 'active' : 'inactive'}">
+                                <div class="bot-header">
+                                    <div class="bot-id">BOT #${bot.bot_id} - ${config.symbol || 'N/A'}</div>
+                                    <div class="bot-status ${bot.is_running ? 'running' : 'stopped'}">
+                                        ${bot.is_running ? '● RUNNING' : '○ STOPPED'}
+                                    </div>
+                                </div>
+                                
+                                <div class="bot-details">
+                                    <div class="bot-detail"><strong>Symbol:</strong> ${config.symbol || 'N/A'}</div>
+                                    <div class="bot-detail"><strong>Timeframe:</strong> ${config.timeframe || 'N/A'}</div>
+                                    <div class="bot-detail"><strong>TP:</strong> ${config.take_profit || 'N/A'} pts</div>
+                                    <div class="bot-detail"><strong>SL:</strong> ${config.stop_loss || 'N/A'} pts</div>
+                                    <div class="bot-detail"><strong>Threshold:</strong> ${((config.confidence_threshold || 0) * 100).toFixed(0)}%</div>
+                                    <div class="bot-detail"><strong>Max Pos:</strong> ${config.max_positions || 'N/A'}</div>
+                                    <div class="bot-detail"><strong>Uptime:</strong> ${bot.uptime || 'N/A'}</div>
+                                    <div class="bot-detail"><strong>MT5:</strong> ${bot.mt5_connected ? '✓ Connected' : '✗ Disconnected'}</div>
+                                    <div class="bot-detail"><strong>Positions:</strong> ${bot.positions_count || 0}</div>
+                                    <div class="bot-detail"><strong>Total Trades:</strong> ${perf.total_trades || 0}</div>
+                                    <div class="bot-detail"><strong>Profit:</strong> $${(perf.total_profit || 0).toFixed(2)}</div>
+                                    <div class="bot-detail"><strong>Win Rate:</strong> ${((perf.win_rate || 0) * 100).toFixed(1)}%</div>
+                                </div>
+                                
+                                <div class="bot-actions">
+                                    ${bot.is_running ? 
+                                        `<button class="danger" onclick="stopBot('${bot.bot_id}')">⬛ PARAR</button>` :
+                                        `<button onclick="startBot('${bot.bot_id}')">▶ INICIAR</button>`
+                                    }
+                                    <button class="danger" onclick="deleteBot('${bot.bot_id}')">🗑 REMOVER</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    listDiv.innerHTML = html;
+                }
+                
+                document.getElementById('totalPositions').textContent = totalPositions;
+                document.getElementById('totalTrades').textContent = totalTrades;
+                
+                // Atualizar timestamp
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                
+            } catch (e) {
+                console.error('Erro ao atualizar lista:', e);
+            }
+        }
+        
+        // Adicionar log
+        function addLog(type, message) {
+            const logsDiv = document.getElementById('systemLogs');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${timestamp}] ${message}`;
+            
+            logsDiv.insertBefore(entry, logsDiv.firstChild);
+            
+            // Manter apenas últimos 50 logs
+            while (logsDiv.children.length > 50) {
+                logsDiv.removeChild(logsDiv.lastChild);
+            }
+        }
+        
+        // Auto-refresh
+        setInterval(refreshBotsList, 2000);
+        
+        // Carregar na inicialização
+        window.onload = function() {
+            addLog('info', 'Multi-Bot Manager iniciado');
+            refreshBotsList();
+        };
+    </script>
+</body>
+</html>

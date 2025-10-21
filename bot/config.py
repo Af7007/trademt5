@@ -9,12 +9,19 @@ from typing import Dict, List, Optional
 @dataclass
 class TradingConfig:
     """Configurações de Trading"""
-    symbol: str = "BTCUSDc"
+    symbol: str = "BTCUSDc"  # Símbolo correto disponível na conta
     lot_size: float = 0.01
-    max_positions: int = 3
+    max_positions: int = 1
     stop_loss_pips: int = 100
     take_profit_pips: int = 200
     magic_number: int = 123456
+
+    # Novas configurações específicas para o teste
+    target_profit_usd: float = 0.50  # Lucro alvo de $0.50
+    risk_percentage: float = 0.01  # 1% de risco por operação
+    dynamic_lot_size: bool = False  # DESABILITADO: usar lote fixo
+    single_operation_mode: bool = True  # Uma operação somente
+    wait_for_position_close: bool = True  # Aguardar fechamento da posição
 
 
 @dataclass

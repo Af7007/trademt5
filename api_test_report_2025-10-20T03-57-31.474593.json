@@ -1,0 +1,944 @@
+{
+  "report": {
+    "summary": {
+      "total_endpoints": 46,
+      "successful_tests": 34,
+      "failed_tests": 12,
+      "health_score": "73.9%",
+      "avg_response_time_ms": "2587.9"
+    },
+    "by_category": {
+      "MLP Bot": {
+        "total": 12,
+        "success": 12
+      },
+      "General": {
+        "total": 17,
+        "success": 17
+      },
+      "Ollama AI": {
+        "total": 11,
+        "success": 3
+      },
+      "Sync MT5 Trades": {
+        "total": 6,
+        "success": 2
+      }
+    },
+    "unstable_endpoints": [
+      "/ollama/pull/<model_name>",
+      "/ollama/generate",
+      "/ollama/generate",
+      "/ollama/chat",
+      "/ollama/chat",
+      "/ollama/analyze/market",
+      "/ollama/signal/trading",
+      "/ollama/interpret/results",
+      "/sync/manual-sync",
+      "/sync/now",
+      "/sync/summary",
+      "/sync/summary"
+    ],
+    "recommendations": [
+      "⚠️ Taxa de sucesso baixa - Verificar endpoints problemáticos",
+      "Respostas lentas - Otimizar performance dos endpoints",
+      "Recomendacao: Executar testes diariamente em producao",
+      "Proximo passo: Adicionar testes de carga para performance"
+    ],
+    "execution_time": 214107
+  },
+  "timestamp": "2025-10-20T03-57-31.474593",
+  "detailed_results": [
+    {
+      "endpoint": {
+        "path": "/mlp/health",
+        "methods": [
+          "get"
+        ],
+        "description": "Verifica saúde do bot MLP\n    ---\n    tags:\n      - MLP Bot\n    responses:\n      200:\n        description: Health check successful\n        schema:\n          type: object\n          properties:\n            status:\n              type: string\n              example: \"healthy\"\n            timestamp:\n              type: string\n              format: date-time\n            bot_running:\n              type: boolean\n            mt5_connected:\n              type: boolean",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/health"
+      },
+      "success": true,
+      "response_time": 2059,
+      "status_code": 200,
+      "response_size": 104,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Campo 'success' ausente na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/start",
+        "methods": [
+          "post"
+        ],
+        "description": "Inicia o bot MLP\n    ---\n    tags:\n      - MLP Bot\n    responses:\n      200:\n        description: Bot iniciado com sucesso\n        schema:\n          type: object\n          properties:\n            success:\n              type: boolean\n            message:\n              type: string\n            timestamp:\n              type: string\n              format: date-time",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/start"
+      },
+      "success": true,
+      "response_time": 2079,
+      "status_code": 200,
+      "response_size": 95,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/stop",
+        "methods": [
+          "post"
+        ],
+        "description": "Para o bot MLP\n    ---\n    tags:\n      - MLP Bot\n    responses:\n      200:\n        description: Bot parado com sucesso\n        schema:\n          type: object\n          properties:\n            success:\n              type: boolean\n              example: true\n            message:\n              type: string\n              example: \"Bot parado com sucesso\"\n            timestamp:\n              type: string\n              format: date-time",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/stop"
+      },
+      "success": true,
+      "response_time": 7072,
+      "status_code": 200,
+      "response_size": 93,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/status",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém status atual do bot MLP\n    ---\n    tags:\n      - MLP Bot\n    responses:\n      200:\n        description: Status obtido com sucesso\n        schema:\n          type: object\n          properties:\n            is_running:\n              type: boolean\n            mt5_connected:\n              type: boolean\n            positions_count:\n              type: integer\n            uptime:\n              type: string",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/status"
+      },
+      "success": true,
+      "response_time": 2028,
+      "status_code": 200,
+      "response_size": 471,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Campo 'success' ausente na resposta",
+        "Campo 'timestamp' ausente na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/execute",
+        "methods": [
+          "post"
+        ],
+        "description": "Executa sinal de trading\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: signal\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            signal:\n              type: string\n              enum: [BUY, SELL, HOLD]\n              example: \"BUY\"\n            confidence:\n              type: number\n              format: float\n              example: 0.85\n    responses:\n      200:\n        description: Sinal executado\n        schema:\n          type: object\n          properties:\n            success:\n              type: boolean\n            signal:\n              type: string\n            confidence:\n              type: number\n            timestamp:\n              type: string\n              format: date-time",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/execute"
+      },
+      "success": true,
+      "response_time": 2078,
+      "status_code": 200,
+      "response_size": 160,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/analyze",
+        "methods": [
+          "post"
+        ],
+        "description": "Analisa mercado e executa operação automaticamente\n    ---\n    tags:\n      - MLP Bot\n    responses:\n      200:\n        description: Análise executada\n        schema:\n          type: object\n          properties:\n            success:\n              type: boolean\n            result:\n              type: object\n            timestamp:\n              type: string\n              format: date-time",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/analyze"
+      },
+      "success": true,
+      "response_time": 2052,
+      "status_code": 200,
+      "response_size": 127,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/train",
+        "methods": [
+          "post"
+        ],
+        "description": "Treina o modelo com dados históricos\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: training_data\n        in: body\n        schema:\n          type: object\n          properties:\n            days:\n              type: integer\n              default: 30\n              example: 30\n    responses:\n      200:\n        description: Modelo treinado\n        schema:\n          type: object\n          properties:\n            success:\n              type: boolean\n            result:\n              type: object\n            timestamp:\n              type: string\n              format: date-time",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/train"
+      },
+      "success": true,
+      "response_time": 9555,
+      "status_code": 200,
+      "response_size": 248,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/emergency-close",
+        "methods": [
+          "post"
+        ],
+        "description": "Fecha todas as posições em emergência",
+        "tag": "General",
+        "full_url": "http://localhost:5000/mlp/emergency-close"
+      },
+      "success": true,
+      "response_time": 2687,
+      "status_code": 200,
+      "response_size": 132,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/performance",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém relatório de performance",
+        "tag": "General",
+        "full_url": "http://localhost:5000/mlp/performance"
+      },
+      "success": true,
+      "response_time": 2042,
+      "status_code": 200,
+      "response_size": 292,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/positions",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém posições atuais",
+        "tag": "General",
+        "full_url": "http://localhost:5000/mlp/positions"
+      },
+      "success": true,
+      "response_time": 2061,
+      "status_code": 200,
+      "response_size": 68,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/market-data",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém dados de mercado",
+        "tag": "General",
+        "full_url": "http://localhost:5000/mlp/market-data"
+      },
+      "success": true,
+      "response_time": 2037,
+      "status_code": 200,
+      "response_size": 12658,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/history",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém histórico de análises MLP\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: symbol\n        in: query\n        type: string\n        example: BTCUSDc\n      - name: limit\n        in: query\n        type: integer\n        default: 100\n        example: 50\n    responses:\n      200:\n        description: Histórico de análises\n        schema:\n          type: array\n          items:\n            type: object",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/history"
+      },
+      "success": true,
+      "response_time": 2049,
+      "status_code": 200,
+      "response_size": 81,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Campo 'success' ausente na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/trades",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém histórico de trades MLP\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: symbol\n        in: query\n        type: string\n        example: BTCUSDc\n      - name: days\n        in: query\n        type: integer\n        default: 30\n        example: 7\n    responses:\n      200:\n        description: Histórico de trades\n        schema:\n          type: array\n          items:\n            type: object",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/trades"
+      },
+      "success": true,
+      "response_time": 2032,
+      "status_code": 200,
+      "response_size": 912,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Campo 'success' ausente na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/analytics",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém estatísticas diárias do bot MLP\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: days\n        in: query\n        type: integer\n        default: 30\n        example: 7\n    responses:\n      200:\n        description: Estatísticas diárias\n        schema:\n          type: array\n          items:\n            type: object",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/analytics"
+      },
+      "success": true,
+      "response_time": 2048,
+      "status_code": 200,
+      "response_size": 75,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Campo 'success' ausente na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/update-trade",
+        "methods": [
+          "post"
+        ],
+        "description": "Atualiza o lucro/prejuízo de um trade\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: trade_update\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            ticket:\n              type: integer\n              example: 123456\n            profit:\n              type: number\n              example: 25.50\n            exit_price:\n              type: number\n              example: 65425.80\n            exit_reason:\n              type: string\n              enum: [TP, SL, MANUAL, EMERGENCY, CLOSE]\n              example: TP\n    responses:\n      200:\n        description: Trade atualizado\n        schema:\n          type: object\n          properties:\n            success:\n              type: boolean",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/update-trade"
+      },
+      "success": true,
+      "response_time": 2041,
+      "status_code": 404,
+      "response_size": 113,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/health",
+        "methods": [
+          "get"
+        ],
+        "description": "Health check da API Bot (/bot/health)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/health"
+      },
+      "success": true,
+      "response_time": 2054,
+      "status_code": 200,
+      "response_size": 104,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/start",
+        "methods": [
+          "post"
+        ],
+        "description": "Iniciar bot de trading (/bot/start)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/start"
+      },
+      "success": true,
+      "response_time": 2095,
+      "status_code": 200,
+      "response_size": 95,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/stop",
+        "methods": [
+          "post"
+        ],
+        "description": "Parar bot de trading (/bot/stop)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/stop"
+      },
+      "success": true,
+      "response_time": 7054,
+      "status_code": 200,
+      "response_size": 93,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/mlp-status",
+        "methods": [
+          "get"
+        ],
+        "description": "Status detalhado do bot MLP (/bot/mlp-status)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/mlp-status"
+      },
+      "success": true,
+      "response_time": 2068,
+      "status_code": 200,
+      "response_size": 469,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/execute",
+        "methods": [
+          "post"
+        ],
+        "description": "Executar sinal BUY/SELL/HOLD (/bot/execute)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/execute"
+      },
+      "success": true,
+      "response_time": 2064,
+      "status_code": 400,
+      "response_size": 128,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/analyze",
+        "methods": [
+          "post"
+        ],
+        "description": "Analisar mercado e executar automaticamente (/bot/analyze)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/analyze"
+      },
+      "success": true,
+      "response_time": 2056,
+      "status_code": 200,
+      "response_size": 127,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/train",
+        "methods": [
+          "post"
+        ],
+        "description": "Treinar modelo MLP com dados históricos (/bot/train)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/train"
+      },
+      "success": true,
+      "response_time": 7803,
+      "status_code": 200,
+      "response_size": 248,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/emergency-close",
+        "methods": [
+          "post"
+        ],
+        "description": "Fecha todas as posições em emergência (/bot/emergency-close)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/emergency-close"
+      },
+      "success": true,
+      "response_time": 2691,
+      "status_code": 200,
+      "response_size": 132,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/performance",
+        "methods": [
+          "get"
+        ],
+        "description": "Relatório de performance detalhado (/bot/performance)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/performance"
+      },
+      "success": true,
+      "response_time": 2052,
+      "status_code": 200,
+      "response_size": 292,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/positions",
+        "methods": [
+          "get"
+        ],
+        "description": "Posições ativas atuais (/bot/positions)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/positions"
+      },
+      "success": true,
+      "response_time": 2030,
+      "status_code": 200,
+      "response_size": 68,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/bot/market-data",
+        "methods": [
+          "get"
+        ],
+        "description": "Dados de mercado em tempo real (/bot/market-data)",
+        "tag": "General",
+        "full_url": "http://localhost:5000/bot/market-data"
+      },
+      "success": true,
+      "response_time": 2045,
+      "status_code": 200,
+      "response_size": 12658,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/test-mlp",
+        "methods": [
+          "get"
+        ],
+        "description": "Teste básico das funcionalidades do bot MLP",
+        "tag": "General",
+        "full_url": "http://localhost:5000/test-mlp"
+      },
+      "success": true,
+      "response_time": 2040,
+      "status_code": 200,
+      "response_size": 160,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ping",
+        "methods": [
+          "get"
+        ],
+        "description": "Teste básico de conectividade",
+        "tag": "General",
+        "full_url": "http://localhost:5000/ping"
+      },
+      "success": true,
+      "response_time": 2067,
+      "status_code": 200,
+      "response_size": 92,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/mlp/config",
+        "methods": [
+          "post"
+        ],
+        "description": "Atualiza configuração do bot MLP\n    ---\n    tags:\n      - MLP Bot\n    parameters:\n      - name: config\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            take_profit:\n              type: number\n              default: 0.50\n              example: 0.50\n            confidence_threshold:\n              type: number\n              default: 0.85\n              example: 0.85\n            auto_trading_enabled:\n              type: boolean\n              default: true\n              example: true\n    responses:\n      200:\n        description: Configuração atualizada",
+        "tag": "MLP Bot",
+        "full_url": "http://localhost:5000/mlp/config"
+      },
+      "success": true,
+      "response_time": 2051,
+      "status_code": 200,
+      "response_size": 202,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/health",
+        "methods": [
+          "get"
+        ],
+        "description": "Verifica se Ollama está rodando e acessível\n    ---\n    tags:\n      - Ollama AI\n    responses:\n      200:\n        description: Status do Ollama\n        schema:\n          type: object\n          properties:\n            succcess:\n              type: boolean\n            data:\n              type: object",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/health"
+      },
+      "success": true,
+      "response_time": 2074,
+      "status_code": 200,
+      "response_size": 100,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Timestamp inválido na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/models",
+        "methods": [
+          "get"
+        ],
+        "description": "Lista modelos instalados no Ollama\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: refresh\n        in: query\n        type: boolean\n        default: false\n        description: Forçar atualização da cache\n    responses:\n      200:\n        description: Lista de modelos",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/models"
+      },
+      "success": true,
+      "response_time": 2069,
+      "status_code": 200,
+      "response_size": 450,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Timestamp inválido na resposta"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/models/<model_name>",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém informações sobre um modelo específico\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: model_name\n        in: path\n        type: string\n        required: true\n        description: Nome do modelo\n    responses:\n      200:\n        description: Informações do modelo",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/models/<model_name>"
+      },
+      "success": true,
+      "response_time": 2059,
+      "status_code": 404,
+      "response_size": 159,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/pull/<model_name>",
+        "methods": [
+          "post"
+        ],
+        "description": "Baixa um modelo do Ollama\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: model_name\n        in: path\n        type: string\n        required: true\n        description: Nome do modelo a baixar\n    responses:\n      200:\n        description: Modelo baixado",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/pull/<model_name>"
+      },
+      "success": false,
+      "response_time": 2046,
+      "status_code": 500,
+      "response_size": 135,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/generate",
+        "methods": [
+          "post"
+        ],
+        "description": "Gera texto usando um modelo Ollama\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: generate_request\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            prompt:\n              type: string\n              example: \"Explique como funcionam as médias móveis no trading\"\n            model:\n              type: string\n              default: \"mistral\"\n              example: \"mistral\"\n            stream:\n              type: boolean\n              default: false\n              example: false\n            options:\n              type: object\n              properties:\n                temperature:\n                  type: number\n                  example: 0.7\n                num_predict:\n                  type: integer\n                  example: 100\n    responses:\n      200:\n        description: Texto gerado",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/generate"
+      },
+      "success": false,
+      "response_time": 2072,
+      "status_code": 500,
+      "response_size": 143,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/generate",
+        "methods": [
+          "post"
+        ],
+        "description": "Gera texto usando um modelo Ollama\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: generate_request\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            prompt:\n              type: string\n              example: \"Explique como funcionam as médias móveis no trading\"\n            model:\n              type: string\n              default: \"mistral\"\n              example: \"mistral\"\n            stream:\n              type: boolean\n              default: false\n              example: false\n            options:\n              type: object\n              properties:\n                temperature:\n                  type: number\n                  example: 0.7\n                num_predict:\n                  type: integer\n                  example: 100\n    responses:\n      200:\n        description: Texto gerado",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/generate"
+      },
+      "success": false,
+      "response_time": 2055,
+      "status_code": 500,
+      "response_size": 142,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/chat",
+        "methods": [
+          "post"
+        ],
+        "description": "Conversação com um modelo Ollama\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: chat_request\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            messages:\n              type: array\n              items:\n                type: object\n                properties:\n                  role:\n                    type: string\n                    enum: [system, user, assistant]\n                  content:\n                    type: string\n              example:\n                [{\"role\": \"user\", \"content\": \"Explique RSI\"}]\n            model:\n              type: string\n              default: \"mistral\"\n            options:\n              type: object\n    responses:\n      200:\n        description: Resposta do chat",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/chat"
+      },
+      "success": false,
+      "response_time": 2066,
+      "status_code": 500,
+      "response_size": 143,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/chat",
+        "methods": [
+          "post"
+        ],
+        "description": "Conversação com um modelo Ollama\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: chat_request\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            messages:\n              type: array\n              items:\n                type: object\n                properties:\n                  role:\n                    type: string\n                    enum: [system, user, assistant]\n                  content:\n                    type: string\n              example:\n                [{\"role\": \"user\", \"content\": \"Explique RSI\"}]\n            model:\n              type: string\n              default: \"mistral\"\n            options:\n              type: object\n    responses:\n      200:\n        description: Resposta do chat",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/chat"
+      },
+      "success": false,
+      "response_time": 2052,
+      "status_code": 500,
+      "response_size": 143,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/analyze/market",
+        "methods": [
+          "post"
+        ],
+        "description": "Análise de sentimento de mercado usando IA\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: market_data\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            bid:\n              type: number\n              example: 45000.50\n            ask:\n              type: number\n              example: 45002.80\n            spread:\n              type: number\n              example: 2.3\n            rsi:\n              type: number\n              example: 55.2\n            sma_20:\n              type: number\n              example: 44800.0\n            sma_50:\n              type: number\n              example: 44500.0\n            positions_count:\n              type: integer\n              example: 0\n            last_signal:\n              type: string\n              example: \"HOLD\"\n    responses:\n      200:\n        description: Análise de mercado",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/analyze/market"
+      },
+      "success": false,
+      "response_time": 2043,
+      "status_code": 500,
+      "response_size": 143,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/signal/trading",
+        "methods": [
+          "post"
+        ],
+        "description": "Gera sinais de trading profissional usando IA\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: market_context\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            balance:\n              type: number\n              example: 1000.0\n            positions:\n              type: integer\n              example: 0\n            recent_analysis:\n              type: string\n              example: \"Mercado está em alta moderada\"\n            risk_tolerance:\n              type: string\n              enum: [conservative, moderate, aggressive]\n              default: conservative\n              example: \"conservative\"\n    responses:\n      200:\n        description: Sinais de trading",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/signal/trading"
+      },
+      "success": false,
+      "response_time": 2051,
+      "status_code": 500,
+      "response_size": 143,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/ollama/interpret/results",
+        "methods": [
+          "post"
+        ],
+        "description": "Interpreta resultados de trading com IA\n    ---\n    tags:\n      - Ollama AI\n    parameters:\n      - name: trading_data\n        in: body\n        required: true\n        schema:\n          type: object\n          properties:\n            trades_history:\n              type: array\n              items:\n                type: object\n                properties:\n                  ticket:\n                    type: string\n                  profit:\n                    type: number\n              example: [{\"ticket\": \"123\", \"profit\": 25.5}]\n            performance_metrics:\n              type: object\n              properties:\n                win_rate:\n                  type: number\n                  example: 72.5\n                total_profit:\n                  type: number\n                  example: 850.0\n                total_trades:\n                  type: integer\n                  example: 50\n                winning_trades:\n                  type: integer\n                  example: 36\n                losing_trades:\n                  type: integer\n                  example: 14\n    responses:\n      200:\n        description: Interpretação de resultados",
+        "tag": "Ollama AI",
+        "full_url": "http://localhost:5000/ollama/interpret/results"
+      },
+      "success": false,
+      "response_time": 2047,
+      "status_code": 500,
+      "response_size": 143,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/sync/status",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém status do serviço de sincronização MT5\n    ---\n    tags:\n      - Sync MT5 Trades\n    responses:\n      200:\n        description: Status da sincronização\n        schema:\n          type: object\n          properties:\n            is_running:\n              type: boolean\n            last_sync:\n              type: string\n            total_new_trades:\n              type: integer\n            uptime_seconds:\n              type: integer",
+        "tag": "Sync MT5 Trades",
+        "full_url": "http://localhost:5000/sync/status"
+      },
+      "success": true,
+      "response_time": 2067,
+      "status_code": 200,
+      "response_size": 222,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/sync/manual-sync",
+        "methods": [
+          "post"
+        ],
+        "description": "Executa sincronização manual de trades do MT5 (recomendado para desenvolvimento)\n    ---\n    tags:\n      - Sync MT5 Trades\n    responses:\n      200:\n        description: Sincronização executada",
+        "tag": "Sync MT5 Trades",
+        "full_url": "http://localhost:5000/sync/manual-sync"
+      },
+      "success": false,
+      "response_time": 2037,
+      "status_code": 500,
+      "response_size": 155,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/sync/stop",
+        "methods": [
+          "post"
+        ],
+        "description": "Para o serviço de sincronização MT5\n    ---\n    tags:\n      - Sync MT5 Trades\n    responses:\n      200:\n        description: Serviço parado",
+        "tag": "Sync MT5 Trades",
+        "full_url": "http://localhost:5000/sync/stop"
+      },
+      "success": true,
+      "response_time": 2031,
+      "status_code": 200,
+      "response_size": 81,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [
+        "Campo 'result' ausente em resposta de sync"
+      ],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/sync/now",
+        "methods": [
+          "post"
+        ],
+        "description": "Executa sincronização MT5 imediata\n    ---\n    tags:\n      - Sync MT5 Trades\n    responses:\n      200:\n        description: Sincronização executada",
+        "tag": "Sync MT5 Trades",
+        "full_url": "http://localhost:5000/sync/now"
+      },
+      "success": false,
+      "response_time": 2065,
+      "status_code": 500,
+      "response_size": 35,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/sync/summary",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém resumo dos trades sincronizados\n    ---\n    tags:\n      - Sync MT5 Trades\n    parameters:\n      - name: days\n        in: query\n        type: integer\n        default: 30\n        description: Dias para análise\n    responses:\n      200:\n        description: Resumo dos trades",
+        "tag": "Sync MT5 Trades",
+        "full_url": "http://localhost:5000/sync/summary"
+      },
+      "success": false,
+      "response_time": 2074,
+      "status_code": 500,
+      "response_size": 72,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    },
+    {
+      "endpoint": {
+        "path": "/sync/summary",
+        "methods": [
+          "get"
+        ],
+        "description": "Obtém resumo dos trades sincronizados\n    ---\n    tags:\n      - Sync MT5 Trades\n    parameters:\n      - name: days\n        in: query\n        type: integer\n        default: 30\n        description: Dias para análise\n    responses:\n      200:\n        description: Resumo dos trades",
+        "tag": "Sync MT5 Trades",
+        "full_url": "http://localhost:5000/sync/summary"
+      },
+      "success": false,
+      "response_time": 2047,
+      "status_code": 500,
+      "response_size": 72,
+      "json_response": true,
+      "error_message": null,
+      "validation_errors": [],
+      "mt5_data_available": true
+    }
+  ]
+}

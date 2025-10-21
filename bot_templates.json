@@ -1,0 +1,81 @@
+{
+  "btc_analysis_only": {
+    "name": "BTC - Análise Apenas",
+    "symbol": "BTCUSDc",
+    "timeframe": "M1",
+    "lot_size": 0.01,
+    "take_profit": 5000,
+    "stop_loss": 10000,
+    "max_positions": 1,
+    "confidence_threshold": 0.70,
+    "trading": {
+      "enabled": false,
+      "auto_execute": false
+    }
+  },
+  
+  "btc_auto_trade": {
+    "name": "BTC - Trading Automático",
+    "symbol": "BTCUSDc",
+    "timeframe": "M1",
+    "lot_size": 0.01,
+    "take_profit": 5000,
+    "stop_loss": 10000,
+    "max_positions": 1,
+    "confidence_threshold": 0.70,
+    "trading": {
+      "enabled": true,
+      "auto_execute": true,
+      "max_daily_trades": 10
+    },
+    "signals": {
+      "min_confidence": 0.70
+    },
+    "advanced": {
+      "magic_number": 123456,
+      "deviation": 10
+    }
+  },
+  
+  "xau_conservative": {
+    "name": "XAU - Conservador",
+    "symbol": "XAUUSDc",
+    "timeframe": "M1",
+    "lot_size": 0.01,
+    "take_profit": 500,
+    "stop_loss": 1000,
+    "max_positions": 1,
+    "confidence_threshold": 0.80,
+    "trading": {
+      "enabled": true,
+      "auto_execute": true,
+      "max_daily_trades": 5
+    },
+    "signals": {
+      "min_confidence": 0.80,
+      "rsi_oversold": 25,
+      "rsi_overbought": 75
+    }
+  },
+  
+  "xau_aggressive": {
+    "name": "XAU - Agressivo",
+    "symbol": "XAUUSDc",
+    "timeframe": "M1",
+    "lot_size": 0.02,
+    "take_profit": 300,
+    "stop_loss": 500,
+    "max_positions": 3,
+    "confidence_threshold": 0.60,
+    "trading": {
+      "enabled": true,
+      "auto_execute": true,
+      "max_daily_trades": 20
+    },
+    "signals": {
+      "min_confidence": 0.60,
+      "rsi_oversold": 35,
+      "rsi_overbought": 65
+    }
+  }
+}
