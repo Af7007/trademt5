@@ -41,7 +41,7 @@ class ConservativeScalpStrategy:
     def __init__(self):
         # Configurações da estratégia
         self.symbol = "BTCUSDc"
-        self.timeframe = mt5.TIMEFRAME_M5  # 5 minutos
+        self.timeframe = mt5.TIMEFRAME_M1  # 1 minuto - MUITO AGRESSIVO
 
         # Parâmetros de risco
         self.max_daily_loss = 50.0  # Máximo $50 perda por dia
