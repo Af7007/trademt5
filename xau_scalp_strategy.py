@@ -57,8 +57,8 @@ class ConservativeScalpStrategy:
         self.tp_points = 12   # TP proporcional
         self.bb_period = 18   # BB período menor que BTC (mercado mais remkite estável)
         self.rsi_period = 12  # RSI período menor
-        self.rsi_neutral_low = 45
-        self.rsi_neutral_high = 55
+        self.rsi_neutral_low = 40  # Mais flexível para scalping
+        self.rsi_neutral_high = 60
         self.bb_range_min = 50    # Range mínimo XAU (mais permissivo)
         self.bb_range_max = 800
         self.ema_fast = 21

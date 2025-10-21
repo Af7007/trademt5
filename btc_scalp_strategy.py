@@ -58,8 +58,8 @@ class ConservativeScalpStrategy:
         self.bb_period = 20
         self.bb_deviations = 2
         self.rsi_period = 14
-        self.rsi_neutral_low = 45
-        self.rsi_neutral_high = 55
+        self.rsi_neutral_low = 40  # Mais flexível para BTC volátil
+        self.rsi_neutral_high = 60
         self.bb_range_min = 100  # Adicionado
         self.bb_range_max = 1500  # Adicionado
 
