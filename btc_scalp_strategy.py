@@ -476,10 +476,8 @@ class ConservativeScalpStrategy:
             logger.info("Posicao no Range: {:.2f}%".format(last['BB_position'] * 100))
             logger.info("RSI Atual: {:.1f}".format(last['RSI']))
 
-            # Volume analysis
-            logger.info("[ANALISE DE VOLUME]")
-            logger.info("Volume Medio: {:.1f}".format(last['volume_avg']))
-            logger.info("Ratio Volume: {:.2f}".format(last['volume_ratio']))
+            # Volume analysis - reduzido
+            logger.info("Volume: {:.1f} | Ratio: {:.2f}".format(last['volume_avg'], last['volume_ratio']))
 
             # Verificações de condição
             logger.info("[VERIFICACAO DE CONDICOES]")
