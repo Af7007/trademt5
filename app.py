@@ -24,6 +24,7 @@ from routes.scalping_routes import scalping_bp
 from routes.bot_manager_routes import bot_manager_bp
 from routes.bot_analysis_routes import bot_analysis_bp
 from routes.hedge_emergency_routes import hedge_emergency_bp
+from routes.prediction_routes import prediction_bp
 # Removido: documentação movida para Django (porta 5001)
 
 # Import bot MLP API
@@ -72,6 +73,7 @@ app.register_blueprint(scalping_bp)
 app.register_blueprint(bot_manager_bp)
 app.register_blueprint(bot_analysis_bp)
 app.register_blueprint(hedge_emergency_bp)
+app.register_blueprint(prediction_bp)
 # Removido: apidocs_bp movido para Django (porta 5001)
 
 # Initialize Swagger

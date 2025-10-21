@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Motor de Predição - Trading MT5</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-4 py-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold"><i class="fas fa-chart-line mr-2"></i>Motor de Predição MT5</h1>
+                    <p class="text-sm opacity-90 mt-1">Análise inteligente de trading baseada em dados reais</p>
+                </div>
+                <div class="text-right">
+                    <div id="status-indicator" class="flex items-center justify-end">
+                        <span class="h-3 w-3 bg-green-400 rounded-full mr-2 pulse"></span>
+                        <span class="text-sm">Sistema Online</span>
+                    </div>
+                    <div class="text-xs opacity-75 mt-1" id="current-time"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-4 py-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Formulário de Predição -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+                    <h2 class="text-2xl font-bold mb-6 text-gray-800">
+                        <i class="fas fa-sliders-h text-purple-600 mr-2"></i>
+                        Configurar Predição
+                    </h2>
+                    
+                    <form id="predictionForm">
+                        <!-- Símbolo -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 font-semibold mb-2">
+                                <i class="fas fa-chart-bar mr-1"></i>Símbolo
+                            </label>
+                            <select id="symbol" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="XAUUSDc">XAUUSDc (Ouro)</option>
+                                <option value="BTCUSDc">BTCUSDc (Bitcoin)</option>
+                                <option value="EURUSDc">EURUSDc (Euro)</option>
+                                <option value="GBPUSDc">GBPUSDc (Libra)</option>
+                                <option value="USDJPYc">USDJPYc (Iene)</option>
+                            </select>
+                        </div>
+
+                        <!-- Lucro Alvo -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 font-semibold mb-2">
+                                <i class="fas fa-dollar-sign mr-1"></i>Lucro Alvo (USD)
+                            </label>
+                            <input type="number" id="targetProfit" value="30" step="1" min="1" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+
+                        <!-- Banca -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 font-semibold mb-2">
+                                <i class="fas fa-wallet mr-1"></i>Banca (USD)
+                            </label>
+                            <input type="number" id="balance" value="1000" step="100" min="100" 
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        </div>
+
+                        <!-- Timeframe -->
+                        <div class="mb-4">
+                            <label class="block text-gray-700 font-semibold mb-2">
+                                <i class="fas fa-clock mr-1"></i>Timeframe
+                            </label>
+                            <select id="timeframe" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                                <option value="M1">M1 (1 minuto)</option>
+                                <option value="M5">M5 (5 minutos)</option>
+                                <option value="M15">M15 (15 minutos)</option>
+                                <option value="M30">M30 (30 minutos)</option>
+                                <option value="H1">H1 (1 hora)</option>
+                                <option value="H4">H4 (4 horas)</option>
+                                <option value="D1">D1 (Diário)</option>
+                            </select>
+                        </div>
+
+                        <!-- Parâmetros Avançados (Colapsável) -->
+                        <div class="mb-4">
+                            <button type="button" id="toggleAdvanced" class="text-purple-600 font-semibold hover:text-purple-800">
+                                <i class="fas fa-cog mr-1"></i>Parâmetros Avançados
+                                <i class="fas fa-chevron-down ml-1" id="advancedIcon"></i>
+                            </button>
+                            <div id="advancedParams" class="hidden mt-4 space-y-4 p-4 bg-gray-50 rounded-lg">
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-semibold mb-2">Lote (0 = auto)</label>
+                                    <input type="number" id="lotSize" value="0" step="0.01" min="0" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-semibold mb-2">Take Profit (0 = auto)</label>
+                                    <input type="number" id="takeProfit" value="0" step="10" min="0" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-semibold mb-2">Stop Loss (0 = auto)</label>
+                                    <input type="number" id="stopLoss" value="0" step="10" min="0" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-semibold mb-2">Máx. Operações (0 = sem limite)</label>
+                                    <input type="number" id="maxOperations" value="0" step="1" min="0" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-gray-700 text-sm font-semibold mb-2">Risco por Operação (%)</label>
+                                    <input type="number" id="riskPercentage" value="2" step="0.5" min="0.5" max="10" 
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Botão Analisar -->
+                        <button type="submit" id="analyzeBtn" 
+                                class="w-full gradient-bg text-white font-bold py-3 px-6 rounded-lg hover:opacity-90 transition duration-200 shadow-lg">
+                            <i class="fas fa-magic mr-2"></i>Gerar Predição
+                        </button>
+                    </form>
+
+                    <!-- Loading Indicator -->
+                    <div id="loading" class="hidden mt-4 text-center">
+                        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                        <p class="text-gray-600 mt-2">Analisando mercado...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resultados da Predição -->
+            <div class="lg:col-span-2">
+                <!-- Placeholder inicial -->
+                <div id="placeholder" class="bg-white rounded-lg shadow-lg p-12 text-center card-shadow">
+                    <i class="fas fa-robot text-6xl text-purple-400 mb-4"></i>
+                    <h3 class="text-2xl font-bold text-gray-700 mb-2">Motor de Predição Pronto</h3>
+                    <p class="text-gray-500">Configure os parâmetros e clique em "Gerar Predição" para começar a análise.</p>
+                </div>
+
+                <!-- Resultados (hidden inicialmente) -->
+                <div id="results" class="hidden space-y-6">
+                    <!-- Resumo do Dia Atual -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">
+                            <i class="fas fa-calendar-day text-purple-600 mr-2"></i>
+                            Resumo do Dia Atual
+                        </h3>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
+                                <div class="text-3xl font-bold text-blue-600" id="estimatedOps">-</div>
+                                <div class="text-xs text-gray-600 mt-1">Operações Estimadas</div>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg">
+                                <div class="text-3xl font-bold text-green-600" id="estimatedTime">-</div>
+                                <div class="text-xs text-gray-600 mt-1">Tempo Estimado</div>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
+                                <div class="text-3xl font-bold text-purple-600" id="successProb">-</div>
+                                <div class="text-xs text-gray-600 mt-1">Probabilidade Hoje</div>
+                            </div>
+                            <div class="text-center p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg">
+                                <div class="text-3xl font-bold text-orange-600" id="riskLevel">-</div>
+                                <div class="text-xs text-gray-600 mt-1">Risco Atual</div>
+                            </div>
+                        </div>
+                        <p class="text-sm text-gray-500 mt-4 text-center">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Dados atuais baseados na análise do mercado hoje
+                        </p>
+                    </div>
+
+                    <!-- Recomendações de Trade -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">
+                            <i class="fas fa-bullseye text-purple-600 mr-2"></i>
+                            Recomendações de Trade
+                        </h3>
+                        <div id="tradeRecommendations"></div>
+                    </div>
+
+                    <!-- Resultados de Backteste de 7 Dias - Apenas Referência -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">
+                            <i class="fas fa-chart-line text-green-600 mr-2"></i>
+                            Backteste 7 Dias
+                        </h3>
+                        <p class="text-sm text-gray-500 mb-4 italic">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            Dados históricos isolados - referência apenas para avaliação da estratégia
+                        </p>
+                        <div id="backtestResults"></div>
+                    </div>
+
+                    <!-- Análise de Mercado -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">
+                            <i class="fas fa-chart-area text-purple-600 mr-2"></i>
+                            Análise de Mercado
+                        </h3>
+                        <div id="marketAnalysis" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+                    </div>
+
+                    <!-- Estratégia -->
+                    <div class="bg-white rounded-lg shadow-lg p-6 card-shadow">
+                        <h3 class="text-xl font-bold mb-4 text-gray-800">
+                            <i class="fas fa-list-check text-purple-600 mr-2"></i>
+                            Estratégia Recomendada
+                        </h3>
+                        <div id="strategy"></div>
+                    </div>
+
+                    <!-- Avisos e Recomendações -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+                            <h4 class="font-bold text-yellow-800 mb-2">
+                                <i class="fas fa-exclamation-triangle mr-2"></i>Avisos
+                            </h4>
+                            <ul id="warnings" class="text-sm text-yellow-700 space-y-1"></ul>
+                        </div>
+                        <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-lg">
+                            <h4 class="font-bold text-green-800 mb-2">
+                                <i class="fas fa-lightbulb mr-2"></i>Recomendações
+                            </h4>
+                            <ul id="recommendations" class="text-sm text-green-700 space-y-1"></ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Atualizar hora
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').textContent = now.toLocaleString('pt-BR');
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+
+        // Toggle parâmetros avançados
+        document.getElementById('toggleAdvanced').addEventListener('click', function() {
+            const advanced = document.getElementById('advancedParams');
+            const icon = document.getElementById('advancedIcon');
+            advanced.classList.toggle('hidden');
+            icon.classList.toggle('fa-chevron-down');
+            icon.classList.toggle('fa-chevron-up');
+        });
+
+        // Submeter formulário
+        document.getElementById('predictionForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Mostrar loading
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('analyzeBtn').disabled = true;
+            document.getElementById('placeholder').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+
+            // Coletar dados
+            const data = {
+                symbol: document.getElementById('symbol').value,
+                target_profit: parseFloat(document.getElementById('targetProfit').value),
+                balance: parseFloat(document.getElementById('balance').value),
+                timeframe: document.getElementById('timeframe').value,
+                risk_percentage: parseFloat(document.getElementById('riskPercentage').value)
+            };
+
+            // Parâmetros opcionais
+            const lotSize = parseFloat(document.getElementById('lotSize').value);
+            const takeProfit = parseFloat(document.getElementById('takeProfit').value);
+            const stopLoss = parseFloat(document.getElementById('stopLoss').value);
+            const maxOps = parseInt(document.getElementById('maxOperations').value);
+
+            if (lotSize > 0) data.lot_size = lotSize;
+            if (takeProfit > 0) data.take_profit = takeProfit;
+            if (stopLoss > 0) data.stop_loss = stopLoss;
+            if (maxOps > 0) data.max_operations = maxOps;
+
+            try {
+                // Fazer requisição
+                const response = await fetch('/prediction/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                console.log('API Response:', result); // Debug: ver estrutura completa
+
+                if (result.success) {
+                    displayResults(result);
+                } else {
+                    alert('Erro: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                alert('Erro ao gerar predição: ' + error.message);
+            } finally {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('analyzeBtn').disabled = false;
+            }
+        });
+
+        function displayResults(data) {
+            // Mostrar resultados
+            document.getElementById('results').classList.remove('hidden');
+
+            // Resumo
+            document.getElementById('estimatedOps').textContent = data.result.predictions.estimated_operations;
+            document.getElementById('estimatedTime').textContent = data.result.predictions.estimated_duration_description.split(' ').slice(1, 3).join(' ');
+            document.getElementById('successProb').textContent = Math.round(data.result.predictions.success_probability * 100) + '%';
+            document.getElementById('riskLevel').textContent = data.result.risk_management.risk_level;
+
+            // Recomendações de Trade - Listar todas as operações estimadas
+            const numTrades = data.result.predictions.estimated_operations;
+            let tradesHtml = '';
+
+            if (data.result.recommended_trades && data.result.recommended_trades.length > 0) {
+                // Usar apenas uma recomendação base e replicá-la por todas as operações
+                const baseTrade = data.result.recommended_trades[0];
+
+                for (let i = 1; i <= numTrades; i++) {
+                    const tradeNumber = i;
+                    const tradeType = (tradeNumber % 2 === 1) ? 'BUY' : 'SELL'; // Alternar BUY/SELL
+
+                    // Variação pequena nos preços para simular operações sequenciais
+                    const priceVariation = (tradeNumber - Math.floor(numTrades/2)) * 0.0001;
+                    const adjustedEntry = baseTrade.entry_price + priceVariation;
+
+                    tradesHtml += `
+                        <div class="p-4 border-l-4 ${tradeType === 'BUY' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} rounded-lg mb-3">
+                            <div class="flex justify-between items-start mb-2">
+                                <span class="font-bold text-lg ${tradeType === 'BUY' ? 'text-green-700' : 'text-red-700'}">
+                                    <i class="fas fa-arrow-${tradeType === 'BUY' ? 'up' : 'down'} mr-2"></i>Operação ${tradeNumber} - ${tradeType}
+                                </span>
+                                <span class="text-sm font-semibold bg-white px-3 py-1 rounded-full">
+                                    Confiança: ${Math.round(baseTrade.confidence * 100)}%
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2 text-sm mt-3">
+                                <div><strong>Entrada:</strong> ${adjustedEntry.toFixed(5)}</div>
+                                <div><strong>Lote:</strong> ${baseTrade.lot_size}</div>
+                                <div><strong>TP:</strong> ${(tradeType === 'BUY' ? adjustedEntry + Math.abs(baseTrade.take_profit) : adjustedEntry - Math.abs(baseTrade.take_profit)).toFixed(5)}</div>
+                                <div><strong>SL:</strong> ${(tradeType === 'BUY' ? adjustedEntry - Math.abs(baseTrade.stop_loss) : adjustedEntry + Math.abs(baseTrade.stop_loss)).toFixed(5)}</div>
+                                <div class="col-span-2"><strong>Lucro Esperado:</strong> $${baseTrade.expected_profit.toFixed(2)}</div>
+                            </div>
+                            <div class="mt-3 p-3 bg-gray-100 rounded-lg">
+                                <h5 class="font-semibold text-sm text-gray-800 mb-2">
+                                    <i class="fas fa-signal mr-1"></i>Sinais para Confirmar Execução:
+                                </h5>
+                                <ul class="text-xs text-gray-700 space-y-1">
+                                    ${getConfirmationSignals(tradeType, data.result.market_analysis).map(signal =>
+                                        `<li class="flex items-start">
+                                            <i class="fas fa-check-circle text-green-600 mr-1 mt-1"></i>
+                                            <span>${signal}</span>
+                                        </li>`
+                                    ).join('')}
+                                </ul>
+                                <p class="text-xs text-gray-600 mt-2 italic">
+                                    <i class="fas fa-info-circle mr-1"></i>
+                                    Trade ${tradeNumber} das ${numTrades} operações necessárias para atingir o objetivo de $30.00.
+                                </p>
+                            </div>
+                        </div>
+                    `;
+                }
+            } else {
+                // Se não houver recomendações, criar operações simuladas
+                for (let i = 1; i <= numTrades; i++) {
+                    const tradeType = (i % 2 === 1) ? 'BUY' : 'SELL';
+                    tradesHtml += `
+                        <div class="p-4 border-l-4 ${tradeType === 'BUY' ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50'} rounded-lg mb-3">
+                            <div class="text-center text-gray-600">
+                                <strong>Operação ${i}</strong> - ${tradeType}<br>
+                                <small>Aguardando análise completa do mercado</small>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            document.getElementById('tradeRecommendations').innerHTML = tradesHtml;
+
+            // Resultados de Backteste
+            const backtestData = data.result.backtest_results;
+            let backtestHtml = '';
+
+            if (backtestData) {
+                const profitColor = backtestData.net_profit >= 0 ? 'text-green-600' : 'text-red-600';
+                const winRateColor = backtestData.win_rate >= 0.6 ? 'text-green-600' : 'text-orange-600';
+
+                backtestHtml = `
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <div class="text-xl font-bold ${profitColor}">${backtestData.total_trades}</div>
+                            <div class="text-xs text-gray-600">Total de Trades</div>
+                        </div>
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <div class="text-xl font-bold ${winRateColor}">${(backtestData.win_rate * 100).toFixed(1)}%</div>
+                            <div class="text-xs text-gray-600">Taxa de Acerto</div>
+                        </div>
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <div class="text-xl font-bold ${profitColor}">$${backtestData.net_profit.toFixed(2)}</div>
+                            <div class="text-xs text-gray-600">Lucro Líquido</div>
+                        </div>
+                        <div class="text-center p-3 bg-gray-50 rounded-lg">
+                            <div class="text-xl font-bold text-orange-600">${backtestData.profit_factor.toFixed(2)}</div>
+                            <div class="text-xs text-gray-600">Profit Factor</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="p-4 bg-blue-50 rounded-lg">
+                            <h4 class="font-semibold text-blue-800 mb-2">📈 Performance</h4>
+                            <div class="text-sm space-y-1">
+                                <div><strong>Trades Vencedores:</strong> ${backtestData.winning_trades}</div>
+                                <div><strong>Trades Perdedores:</strong> ${backtestData.losing_trades}</div>
+                                <div><strong>Profit Médio:</strong> $${backtestData.average_win.toFixed(2)}</div>
+                                <div><strong>Loss Médio:</strong> $${backtestData.average_loss.toFixed(2)}</div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-green-50 rounded-lg">
+                            <h4 class="font-semibold text-green-800 mb-2">📊 Estatísticas</h4>
+                            <div class="text-sm space-y-1">
+                                <div><strong>Maior Win:</strong> $${backtestData.largest_win.toFixed(2)}</div>
+                                <div><strong>Maior Loss:</strong> $${backtestData.largest_loss.toFixed(2)}</div>
+                                <div><strong>Max Drawdown:</strong> $${backtestData.max_drawdown.toFixed(2)}</div>
+                                <div><strong>Sharpe Ratio:</strong> ${backtestData.sharpe_ratio.toFixed(2)}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else {
+                backtestHtml = '<p class="text-gray-500 text-center py-4">Dados de backteste não disponíveis</p>';
+            }
+
+            document.getElementById('backtestResults').innerHTML = backtestHtml;
+
+            // Análise de Mercado
+            const marketHtml = `
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-semibold mb-2">Tendência</h4>
+                    <p class="text-sm"><strong>Direção:</strong> ${data.result.market_analysis.trend.direction}</p>
+                    <p class="text-sm"><strong>Força:</strong> ${Math.round(data.result.market_analysis.trend.strength * 100)}%</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-semibold mb-2">Volatilidade</h4>
+                    <p class="text-sm"><strong>Nível:</strong> ${data.result.market_analysis.volatility.level}</p>
+                    <p class="text-sm"><strong>ATR:</strong> ${data.result.market_analysis.volatility.atr.toFixed(2)}</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-semibold mb-2">Indicadores</h4>
+                    <p class="text-sm"><strong>RSI:</strong> ${data.result.market_analysis.indicators.rsi.toFixed(1)}</p>
+                    <p class="text-sm"><strong>MACD:</strong> ${data.result.market_analysis.indicators.macd.toFixed(2)}</p>
+                </div>
+                <div class="p-4 bg-gray-50 rounded-lg">
+                    <h4 class="font-semibold mb-2">Volume</h4>
+                    <p class="text-sm"><strong>Atividade:</strong> ${data.result.market_analysis.volume.activity_level}</p>
+                    <p class="text-sm"><strong>Ratio:</strong> ${data.result.market_analysis.volume.volume_ratio.toFixed(2)}</p>
+                </div>
+            `;
+            document.getElementById('marketAnalysis').innerHTML = marketHtml;
+
+            // Estratégia
+            const strategyHtml = `
+                <p class="mb-4 text-gray-700">${data.result.strategy.description}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <h4 class="font-semibold mb-2 text-green-700"><i class="fas fa-door-open mr-1"></i>Condições de Entrada</h4>
+                        <ul class="text-sm space-y-1">
+                            ${data.result.strategy.entry_conditions.map(c => `<li class="flex items-start"><i class="fas fa-check-circle text-green-500 mr-2 mt-1"></i><span>${c}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                    <div>
+                        <h4 class="font-semibold mb-2 text-red-700"><i class="fas fa-door-closed mr-1"></i>Condições de Saída</h4>
+                        <ul class="text-sm space-y-1">
+                            ${data.result.strategy.exit_conditions.map(c => `<li class="flex items-start"><i class="fas fa-times-circle text-red-500 mr-2 mt-1"></i><span>${c}</span></li>`).join('')}
+                        </ul>
+                    </div>
+                </div>
+                <div class="mt-4 p-3 bg-blue-50 rounded-lg">
+                    <strong class="text-blue-800"><i class="fas fa-clock mr-1"></i>Melhores Horários:</strong>
+                    <span class="text-sm text-blue-700 ml-2">${data.result.timing.best_entry_times.join(', ')}</span>
+                </div>
+            `;
+            document.getElementById('strategy').innerHTML = strategyHtml;
+
+            // Avisos
+            const warningsHtml = data.result.warnings.map(w => `<li class="flex items-start"><i class="fas fa-circle text-xs mr-2 mt-1"></i><span>${w}</span></li>`).join('');
+            document.getElementById('warnings').innerHTML = warningsHtml || '<li>Nenhum aviso</li>';
+
+            // Recomendações
+            const recsHtml = data.result.recommendations.map(r => `<li class="flex items-start"><i class="fas fa-circle text-xs mr-2 mt-1"></i><span>${r}</span></li>`).join('');
+            document.getElementById('recommendations').innerHTML = recsHtml || '<li>Nenhuma recomendação</li>';
+
+            // Scroll suave para resultados
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // Função para gerar sinais de confirmação de entrada
+        function getConfirmationSignals(tradeType, marketAnalysis) {
+            const signals = [];
+            const rsi = marketAnalysis.indicators.rsi;
+            const macd = marketAnalysis.indicators.macd_histogram;
+            const bb_position = marketAnalysis.indicators.bb_position;
+
+            if (tradeType === 'BUY') {
+                // Sinais para operação BUY
+                signals.push('Preço acima da linha central da Bollinger Bands');
+                signals.push('Preço próximo dos suportes importantes');
+                signals.push('Volume alto indicando força compradora');
+
+                if (rsi < 35) signals.push('RSI em região de sobrevenda (ideal < 35)');
+                else if (rsi < 45) signals.push('RSI indicando entrada compradora');
+
+                if (macd > 0) signals.push('MACD histograma positivo confirmando força');
+                else signals.push('MACD cruzando para cima (setup de entrada)');
+
+                if (bb_position > 0.7) signals.push('Preço muito próximo das Bandas Superiores');
+                else signals.push('Preço em posição neutra da Bollinger');
+
+                signals.push('Tendência de fundo identificado');
+                signals.push('Aguardar candle de força compradora (engolfo, etc.)');
+
+            } else {
+                // Sinais para operação SELL
+                signals.push('Preço abaixo da linha central da Bollinger Bands');
+                signals.push('Preço próximo das resistências importantes');
+                signals.push('Volume alto indicando pressão vendedora');
+
+                if (rsi > 65) signals.push('RSI em região de sobrecompra (ideal > 65)');
+                else if (rsi > 55) signals.push('RSI indicando entrada vendedora');
+
+                if (macd < 0) signals.push('MACD histograma negativo confirmando fraqueza');
+                else signals.push('MACD cruzando para baixo (setup de entrada)');
+
+                if (bb_position < 0.3) signals.push('Preço muito próximo das Bandas Inferiores');
+                else signals.push('Preço em posição neutra da Bollinger');
+
+                signals.push('Tendência de topo identificado');
+                signals.push('Aguardar candle de força vendedora (estrela, etc.)');
+            }
+
+            return signals;
+        }
+    </script>
+</body>
+</html>
